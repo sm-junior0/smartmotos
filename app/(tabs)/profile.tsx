@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, TextInput, Pressable } from 'react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
-import { LogOut, Lock, User, Users, CreditCard, HelpCircle, ChevronRight, Edit, ChevronDown, Check, Minus } from 'lucide-react-native';
+import { LogOut, Lock, User, Users, CreditCard, HelpCircle, ChevronRight, Edit, ChevronDown, Check, Minus, Instagram, Facebook, MessageCircle, MoreHorizontal, MessageSquareText } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 
 const USER = {
@@ -239,10 +239,10 @@ export default function ProfileScreen() {
           <View style={styles.referSheet}>
             <Text style={styles.referTitle}>Refer a friend via</Text>
             <View style={styles.referOptionsRow}>
-              <View style={styles.referOption}><Text style={styles.referIcon}>🟢</Text><Text style={styles.referLabel}>Whatsapp</Text></View>
-              <View style={styles.referOption}><Text style={styles.referIcon}>🔵</Text><Text style={styles.referLabel}>Facebook</Text></View>
-              <View style={styles.referOption}><Text style={styles.referIcon}>🟢</Text><Text style={styles.referLabel}>SMS</Text></View>
-              <View style={styles.referOption}><Text style={styles.referIcon}>⚫</Text><Text style={styles.referLabel}>Others</Text></View>
+              <View style={styles.referOption}><Text style={styles.referIcon}><MessageSquareText /></Text><Text style={styles.referLabel}>Whatsapp</Text></View>
+              <View style={styles.referOption}><Text style={styles.referIcon}><Facebook /></Text><Text style={styles.referLabel}>Facebook</Text></View>
+              <View style={styles.referOption}><Text style={styles.referIcon}><MessageCircle /></Text><Text style={styles.referLabel}>SMS</Text></View>
+              <View style={styles.referOption}><Text style={styles.referIcon}><MoreHorizontal /></Text><Text style={styles.referLabel}>Others</Text></View>
             </View>
             <Pressable style={styles.modalCancelBtn} onPress={() => setShowRefer(false)}>
               <Text style={styles.modalCancelText}>Cancel</Text>
@@ -496,6 +496,10 @@ const styles = StyleSheet.create({
     color: Colors.secondary.default,
     fontWeight: '700',
     fontSize: 18,
+    marginTop: 12,
+    marginBottom: 12,
+    marginHorizontal: 12,
+    textAlign: 'center',
   },
   referSheet: {
     backgroundColor: Colors.neutral.white,
