@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Settings, Lock, Share2, CreditCard, MessageCircle, LogOut, ChevronRight, CreditCard as Edit2 } from 'lucide-react-native';
@@ -24,6 +24,9 @@ function MenuItem({ icon, title, onPress }: MenuItemProps) {
 }
 
 export default function AccountScreen() {
+
+  const [showTopUp, setShowTopUp] = useState(false);  
+  const [showRefer, setShowRefer] = useState(false);
   const handleLogout = () => {
     router.replace('/Auth/Login');
   };
@@ -39,8 +42,8 @@ export default function AccountScreen() {
             </View>
             <Text style={styles.balanceAmount}>24000Rwf</Text>
           </View>
-          <TouchableOpacity style={styles.topUpButton}>
-            <Text style={styles.topUpText}>Top up +</Text>
+          <TouchableOpacity style={styles.topUpButton} onPress={() => setShowTopUp(true)}>
+            <Text style={styles.topUpText} >Top up +</Text>
           </TouchableOpacity>
         </View>
 
@@ -76,17 +79,17 @@ export default function AccountScreen() {
         <MenuItem
           icon={<Share2 size={24} color={Colors.secondary.default} />}
           title="Refer a friend"
-          onPress={() => router.push('/Account/refer')}
+          onPress={() => setShowRefer(true)}
         />
         <MenuItem
           icon={<CreditCard size={24} color={Colors.secondary.default} />}
           title="Card and bank settings"
-          onPress={() => router.push('/Account/cards')}
+          onPress={() => router.push('/(tabs)/payment')}
         />
         <MenuItem
           icon={<MessageCircle size={24} color={Colors.secondary.default} />}
           title="Customer support"
-          onPress={() => router.push('/Account/support')}
+          onPress={() => router.push('/Support')}
         />
       </View>
 
@@ -95,6 +98,7 @@ export default function AccountScreen() {
         <Text style={styles.signOutText}>Sign out</Text>
       </TouchableOpacity>
     </ScrollView>
+    
   );
 }
 
