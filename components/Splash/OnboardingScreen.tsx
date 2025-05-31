@@ -44,7 +44,7 @@ interface OnboardingScreenProps {
 
 export default function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   const { width } = Dimensions.get('window');
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<Animated.ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const translateX = useSharedValue(0);
 

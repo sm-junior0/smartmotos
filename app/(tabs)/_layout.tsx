@@ -15,6 +15,7 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: Colors.primary.default,
         tabBarInactiveTintColor: Colors.neutral.light,
+        tabBarLabelPosition: 'below-icon',
       }}>
       <Tabs.Screen
         name="index"
