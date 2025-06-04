@@ -1,23 +1,30 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
+import Colors from '@/constants/Colors';
 import StatusMessage from '@/components/UI/StatusMessage';
 
 export default function VerificationError() {
   const handleRetry = () => {
-    // Navigate back to verification screen
-    router.navigate('/Auth/Verification');
+    router.back(); // Go back to verification screen
   };
 
   return (
-    <StatusMessage
-      type="error"
-      title="Error!"
-      message="The verification code you entered is incorrect or has expired. Please check and try again."
-      buttonText="Try Again"
-      onButtonPress={handleRetry}
-    />
+    <View style={styles.container}>
+      <StatusMessage
+        type="error"
+        title="Verification Failed"
+        message="We couldn't verify your phone number. Please check the code and try again."
+        buttonText="Try Again"
+        onButtonPress={handleRetry}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.secondary.default,
+  },
+});

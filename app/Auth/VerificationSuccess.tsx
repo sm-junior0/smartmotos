@@ -1,23 +1,30 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
+import Colors from '@/constants/Colors';
 import StatusMessage from '@/components/UI/StatusMessage';
 
 export default function VerificationSuccess() {
   const handleContinue = () => {
-    // Navigate to the main app after successful verification
-    router.push('/(tabs)');
+    router.replace('/Auth/Login');
   };
 
   return (
-    <StatusMessage
-      type="success"
-      title="Successful"
-      message="Your account has been successfully verified. You can now access all features of the Smart Motos app."
-      buttonText="Continue"
-      onButtonPress={handleContinue}
-    />
+    <View style={styles.container}>
+      <StatusMessage
+        type="success"
+        title="Phone Verified!"
+        message="Your phone number has been successfully verified. You can now log in to your account."
+        buttonText="Continue to Login"
+        onButtonPress={handleContinue}
+      />
+    </View>
   );
 }
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.secondary.default,
+  },
+});

@@ -19,6 +19,7 @@
     "expo": "^53.0.9",
     "expo-blur": "~14.1.4",
     "expo-camera": "~16.1.6",
+    "expo-checkbox": "~4.1.4",
     "expo-constants": "~17.1.6",
     "expo-font": "~13.3.1",
     "expo-haptics": "~14.1.4",
@@ -32,6 +33,7 @@
     "expo-symbols": "~0.4.4",
     "expo-system-ui": "~5.0.7",
     "expo-web-browser": "~14.1.6",
+    "jwt-decode": "^4.0.0",
     "lucide-react-native": "^0.475.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
@@ -46,7 +48,7 @@
     "react-native-web": "^0.20.0",
     "react-native-webview": "13.13.5",
     "typescript": "~5.8.3",
-    "expo-checkbox": "~4.1.4"
+    "expo-secure-store": "~14.2.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

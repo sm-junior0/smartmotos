@@ -1,17 +1,25 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import SocialAuthButtons from '@/components/UI/SocialAuthButtons';
+import { signup } from '@/services/auth';
 
 export default function Signup() {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    phone: '',
+    phone: '+250',
     password: '',
     confirmPassword: '',
   });
@@ -31,6 +39,21 @@ export default function Signup() {
     // Clear error when typing
     if (errors[field as keyof typeof errors]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    if (value.startsWith('+250')) {
+      setFormData((prev) => ({ ...prev, phone: value }));
+    } else if (value.length < formData.phone.length) {
+      // If deleting, don't allow deleting the prefix
+      setFormData((prev) => ({ ...prev, phone: '+250' }));
+    } else {
+      // If adding numbers, ensure prefix exists
+      setFormData((prev) => ({
+        ...prev,
+        phone: '+250' + value.replace('+250', ''),
+      }));
     }
   };
 
@@ -57,11 +80,13 @@ export default function Signup() {
       isValid = false;
     }
 
+    // Validate phone number format: +250XXXXXXXXX
+    const phoneRegex = /^\+250[0-9]{9}$/;
     if (!formData.phone) {
       newErrors.phone = 'Phone number is required';
       isValid = false;
-    } else if (!/^\d{10}$/.test(formData.phone.replace(/\D/g, ''))) {
-      newErrors.phone = 'Phone number must be 10 digits';
+    } else if (!phoneRegex.test(formData.phone)) {
+      newErrors.phone = 'Phone number must be in format: +250XXXXXXXXX';
       isValid = false;
     }
 
@@ -82,19 +107,34 @@ export default function Signup() {
     return isValid;
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!validateForm()) return;
 
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      // Navigate to verification
-      router.navigate({
-        pathname: '/Auth/Verification',
-        params: { phone: formData.phone },
-      });
-    }, 1500);
+    const result = await signup({
+      name: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      password: formData.password,
+      confirm_password: formData.confirmPassword,
+    });
+
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert('Success', result.message, [
+        {
+          text: 'OK',
+          onPress: () =>
+            router.push({
+              pathname: '/Auth/Verification',
+              params: { phone: formData.phone },
+            }),
+        },
+      ]);
+    } else {
+      Alert.alert('Error', result.error);
+    }
   };
 
   const handleGoogleSignup = () => {
@@ -117,7 +157,10 @@ export default function Signup() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Create New Account</Text>
       </View>
@@ -143,10 +186,10 @@ export default function Signup() {
 
         <Input
           label="Phone Number"
-          placeholder="(123) 456-7890"
+          placeholder="+250XXXXXXXXX"
           keyboardType="phone-pad"
           value={formData.phone}
-          onChangeText={(value) => updateFormData('phone', value)}
+          onChangeText={handlePhoneChange}
           error={errors.phone}
         />
 
