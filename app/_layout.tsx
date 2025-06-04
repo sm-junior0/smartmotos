@@ -6,6 +6,7 @@ import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-f
 import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { SplashScreen } from 'expo-router';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
+import { RideProvider } from '@/hooks/useRideContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete
 SplashScreen.preventAutoHideAsync();
@@ -36,7 +37,7 @@ export default function RootLayout() {
   }
 
   return (
-    <>
+    <RideProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="Auth/Login" />
@@ -47,6 +48,6 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="light" />
-    </>
+    </RideProvider>
   );
 }

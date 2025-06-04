@@ -8,6 +8,7 @@ import {
   ViewStyle,
   TextInputProps,
   TouchableOpacity,
+  TextStyle,
 } from 'react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
@@ -18,6 +19,8 @@ interface InputProps extends TextInputProps {
   error?: string;
   containerStyle?: StyleProp<ViewStyle>;
   secureTextEntry?: boolean;
+  labelStyle?: StyleProp<TextStyle>;
+  placeholderTextColor?: string;
 }
 
 export default function Input({
@@ -25,6 +28,8 @@ export default function Input({
   error,
   containerStyle,
   secureTextEntry,
+  labelStyle,
+  placeholderTextColor,
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -36,7 +41,7 @@ export default function Input({
 
   return (
     <View style={[styles.container, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
       <View
         style={[
           styles.inputContainer,
@@ -46,7 +51,7 @@ export default function Input({
       >
         <TextInput
           style={styles.input}
-          placeholderTextColor={Colors.neutral.medium}
+          placeholderTextColor={placeholderTextColor || Colors.neutral.medium}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           secureTextEntry={secureTextEntry && !isPasswordVisible}

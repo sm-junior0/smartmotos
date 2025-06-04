@@ -22,7 +22,7 @@ export default function RideLayout() {
       }}
     >
       <Stack.Screen
-        name="book"
+        name="index"
         options={{
           title: 'Book a Ride',
           headerShown: false,
@@ -33,6 +33,13 @@ export default function RideLayout() {
         options={{
           headerShown: false,
           gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="book"
+        options={{
+          title: 'Book by Form',
+          headerShown: false,
         }}
       />
       <Stack.Screen

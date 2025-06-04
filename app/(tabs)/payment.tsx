@@ -1,39 +1,43 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/Colors';
 import Button from '@/components/UI/Button';
 import Layout from '@/constants/Layout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PaymentScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Payment Methods</Text>
-      </View>
-      
-      <View style={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Add Payment Method</Text>
-          <Text style={styles.cardDescription}>
-            Add a new payment method to make your rides more convenient
-          </Text>
-          <Button
-            title="Add New Card"
-            onPress={() => router.push('/Ride/payment')}
-            variant="primary"
-            size="large"
-            style={styles.button}
-          />
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.neutral.white }}>
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Payment Methods</Text>
         </View>
+        
+        <View style={styles.content}>
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Add Payment Method</Text>
+            <Text style={styles.cardDescription}>
+              Add a new payment method to make your rides more convenient
+            </Text>
+            <Button
+              title="Add New Card"
+              onPress={() => router.push('/Ride/payment')}
+              variant="primary"
+              size="large"
+              style={styles.button}
+            />
+          </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Payments</Text>
-          {/* Add payment history list here */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Payments</Text>
+            {/* Add payment history list here */}
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
