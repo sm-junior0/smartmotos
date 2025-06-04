@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ScrollView, SafeAreaView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MapPin } from 'lucide-react-native';
+import { MapPin, Map, List, ArrowRight } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const POPULAR_DESTINATIONS = [
   'African Leadership University',
@@ -15,45 +16,77 @@ const POPULAR_DESTINATIONS = [
 
 export default function BookScreen() {
   const router = useRouter();
-
-  const handleBookRide = () => {
-    router.push('/Ride/book');
-  };
+  const insets = useSafeAreaInsets();
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Book a Ride</Text>
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Quick Ride</Text>
-          <Text style={styles.cardDescription}>
-            Book a ride to your destination quickly and easily
-          </Text>
-          <Button
-            title="Book Now"
-            onPress={() => router.push('/Ride/map')}
-            variant="primary"
-            size="large"
-            style={styles.button}
-          />
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <Text style={styles.welcomeText}>Welcome to SmartMotos</Text>
+          <Text style={styles.subtitle}>Your trusted ride-hailing partner</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Popular Destinations</Text>
-        {POPULAR_DESTINATIONS.map((destination, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.destinationItem}
-            onPress={handleBookRide}
+        {/* Booking Options */}
+        <View style={styles.bookingOptions}>
+          <TouchableOpacity 
+            style={[styles.bookingCard, styles.mapCard]}
+            onPress={() => router.push('/Ride/map')}
           >
-            <MapPin size={20} color={Colors.neutral.dark} />
-            <Text style={styles.destinationText}>{destination}</Text>
+            <View style={styles.cardContent}>
+              <View style={[styles.iconContainer, styles.mapIconContainer]}>
+                <Map size={32} color={Colors.primary.default} />
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardTitle}>Book by Map</Text>
+                <Text style={styles.cardDescription}>
+                  Select your pickup and dropoff locations directly on the map
+                </Text>
+              </View>
+              <ArrowRight size={24} color={Colors.primary.default} />
+            </View>
           </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+
+          <TouchableOpacity 
+            style={[styles.bookingCard, styles.formCard]}
+            onPress={() => router.push('/Ride/book')}
+          >
+            <View style={styles.cardContent}>
+              <View style={[styles.iconContainer, styles.formIconContainer]}>
+                <List size={32} color={Colors.secondary.default} />
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardTitle}>Book by Form</Text>
+                <Text style={styles.cardDescription}>
+                  Enter your ride details manually for precise scheduling
+                </Text>
+              </View>
+              <ArrowRight size={24} color={Colors.secondary.default} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Popular Destinations */}
+        <View style={styles.destinationsSection}>
+          <Text style={styles.sectionTitle}>Popular Destinations</Text>
+          <View style={styles.destinationsList}>
+            {POPULAR_DESTINATIONS.map((destination, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.destinationItem}
+                onPress={() => router.push('/Ride/map')}
+              >
+                <View style={styles.destinationIcon}>
+                  <MapPin size={20} color={Colors.primary.default} />
+                </View>
+                <Text style={styles.destinationText}>{destination}</Text>
+                <ArrowRight size={20} color={Colors.neutral.dark} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -62,55 +95,119 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.neutral.white,
   },
-  header: {
-    backgroundColor: Colors.primary.default,
+  scrollView: {
+    flex: 1,
+  },
+  heroSection: {
     padding: Layout.spacing.xl,
     paddingTop: 60,
+    backgroundColor: Colors.primary.default,
+    borderBottomLeftRadius: Layout.borderRadius.xl,
+    borderBottomRightRadius: Layout.borderRadius.xl,
   },
-  title: {
-    fontSize: 24,
+  welcomeText: {
+    fontSize: 32,
     fontWeight: '700',
-    color: Colors.secondary.default,
+    color: Colors.neutral.white,
+    marginBottom: Layout.spacing.xs,
   },
-  content: {
-    padding: Layout.spacing.xl,
+  subtitle: {
+    fontSize: 18,
+    color: Colors.neutral.lightest,
+    opacity: 0.9,
   },
-  card: {
-    backgroundColor: Colors.secondary.default,
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+  bookingOptions: {
+    padding: Layout.spacing.l,
+    gap: Layout.spacing.m,
+    marginTop: -Layout.spacing.xl,
+  },
+  bookingCard: {
+    borderRadius: Layout.borderRadius.l,
+    backgroundColor: Colors.neutral.white,
+    shadowColor: Colors.neutral.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  mapCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary.default,
+  },
+  formCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.secondary.default,
+  },
+  cardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Layout.spacing.l,
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Layout.spacing.m,
+  },
+  mapIconContainer: {
+    backgroundColor: Colors.primary.light,
+  },
+  formIconContainer: {
+    backgroundColor: Colors.secondary.light,
+  },
+  cardTextContainer: {
+    flex: 1,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: Colors.neutral.white,
-    marginBottom: 8,
+    color: Colors.neutral.black,
+    marginBottom: Layout.spacing.xs,
   },
   cardDescription: {
     fontSize: 14,
-    color: Colors.neutral.light,
-    marginBottom: 16,
+    color: Colors.neutral.dark,
+    lineHeight: 20,
   },
-  button: {
-    marginTop: 8,
+  destinationsSection: {
+    padding: Layout.spacing.l,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: Colors.neutral.dark,
-    marginBottom: Layout.spacing.l,
+    color: Colors.neutral.black,
+    marginBottom: Layout.spacing.m,
+  },
+  destinationsList: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: Layout.borderRadius.l,
+    shadowColor: Colors.neutral.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   destinationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Layout.spacing.m,
+    padding: Layout.spacing.m,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral.lighter,
+    borderBottomColor: Colors.neutral.light,
+  },
+  destinationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary.light,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Layout.spacing.m,
   },
   destinationText: {
-    marginLeft: Layout.spacing.m,
+    flex: 1,
     fontSize: 16,
-    color: Colors.secondary.default,
+    color: Colors.neutral.black,
   },
 });
