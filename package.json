@@ -45,7 +45,8 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "^0.20.0",
     "react-native-webview": "13.13.5",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "expo-checkbox": "~4.1.4"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -53,10 +54,10 @@
     "typescript": "~5.8.3"
   },
   "expo": {
-  "doctor": {
-    "reactNativeDirectoryCheck": {
-      "listUnknownPackages": false
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "listUnknownPackages": false
+      }
     }
   }
-}
 }

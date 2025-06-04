@@ -1,170 +1,182 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { router } from 'expo-router';
-import { Wallet, CreditCard } from 'lucide-react-native';
+import { CreditCard, Wallet, Check, ChevronLeft } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
+import { useRide } from '@/hooks/useRideContext';
 
 const PAYMENT_METHODS = [
   {
     id: 'wallet',
-    title: 'Wallet',
+    name: 'Wallet',
     icon: Wallet,
-    balance: '24000 Rwf',
+    balance: '24,000 Rwf',
   },
   {
     id: 'card',
-    title: 'Credit Card',
+    name: 'Credit Card',
     icon: CreditCard,
     last4: '4242',
   },
 ];
 
 export default function PaymentScreen() {
-  const [selectedMethod, setSelectedMethod] = useState('wallet');
-  const [loading, setLoading] = useState(false);
+  const { rideState, setRideStatus } = useRide();
+  const { currentTrip } = rideState;
 
-  const handlePayment = () => {
-    setLoading(true);
-    // Simulate payment processing
-    setTimeout(() => {
-      setLoading(false);
-      router.push('/Ride/confirmation');
-    }, 2000);
+  const [selectedMethod, setSelectedMethod] = useState('wallet');
+
+  const handlePayNow = () => {
+    setRideStatus('completed');
+    router.replace('/Ride/rating');
   };
 
+  const tripFare = (parseInt(currentTrip?.baseFare?.replace(' Rwf', '') || '0') + parseInt(currentTrip?.distanceFare?.replace(' Rwf', '') || '0')).toString() + ' Rwf';
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Select Payment Method</Text>
-
-      {PAYMENT_METHODS.map((method) => (
-        <TouchableOpacity
-          key={method.id}
-          style={[
-            styles.methodCard,
-            selectedMethod === method.id && styles.selectedMethod,
-          ]}
-          onPress={() => setSelectedMethod(method.id)}
-        >
-          <method.icon
-            size={24}
-            color={
-              selectedMethod === method.id
-                ? Colors.primary.default
-                : Colors.neutral.dark
-            }
-          />
-          <View style={styles.methodInfo}>
-            <Text style={styles.methodTitle}>{method.title}</Text>
-            <Text style={styles.methodDetail}>
-              {method.id === 'wallet' ? method.balance : `****${method.last4}`}
-            </Text>
-          </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <ChevronLeft size={24} color={Colors.neutral.white} />
         </TouchableOpacity>
-      ))}
-
-      <View style={styles.summary}>
-        <Text style={styles.summaryTitle}>Trip Summary</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Base Fare</Text>
-          <Text style={styles.summaryValue}>800 Rwf</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Distance (5.2 km)</Text>
-          <Text style={styles.summaryValue}>200 Rwf</Text>
-        </View>
-        <View style={[styles.summaryRow, styles.totalRow]}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>1000 Rwf</Text>
-        </View>
+        <Text style={styles.headerTitle}>INVOICE</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <Button
-        title="Pay Now"
-        onPress={handlePayment}
-        loading={loading}
-        style={styles.payButton}
-      />
-    </View>
+      <ScrollView style={styles.scrollView}>
+        {currentTrip ? (
+          <View style={styles.invoiceCard}>
+            <View style={styles.invoiceRow}>
+              <Text style={styles.invoiceLabel}>Pickup point</Text>
+              <Text style={styles.invoiceValue}>{rideState.bookingDetails.pickup}</Text>
+            </View>
+            <View style={styles.invoiceRow}>
+              <Text style={styles.invoiceLabel}>Drop point</Text>
+              <Text style={styles.invoiceValue}>{rideState.bookingDetails.dropoff}</Text>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.invoiceRow}>
+              <Text style={styles.invoiceLabel}>Trip fare</Text>
+              <Text style={styles.invoiceValue}>{tripFare}</Text>
+            </View>
+            {currentTrip.waitingFee && parseInt(currentTrip.waitingFee.replace(' Rwf', '')) > 0 && (
+              <View style={styles.invoiceRow}>
+                <Text style={styles.invoiceLabel}>Waiting fee</Text>
+                <Text style={styles.invoiceValue}>{currentTrip.waitingFee}</Text>
+              </View>
+            )}
+
+            <View style={[styles.invoiceRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{currentTrip.total}</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading invoice...</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {currentTrip && (
+        <View style={styles.footer}>
+          <Button
+            title="Pay now"
+            onPress={handlePayNow}
+            style={styles.payNowButton}
+          />
+        </View>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutral.white,
-    padding: Layout.spacing.xl,
+    backgroundColor: Colors.neutral.black,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.secondary.default,
-    marginBottom: Layout.spacing.l,
-  },
-  methodCard: {
+  topBar: {
+    paddingTop: Layout.spacing.xl,
+    paddingHorizontal: Layout.spacing.m,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Layout.spacing.l,
-    backgroundColor: Colors.neutral.lightest,
-    borderRadius: Layout.borderRadius.l,
-    marginBottom: Layout.spacing.m,
+    justifyContent: 'space-between',
+    backgroundColor: Colors.neutral.black,
   },
-  selectedMethod: {
-    backgroundColor: Colors.primary.light,
+  backButton: {
+    padding: Layout.spacing.s,
   },
-  methodInfo: {
-    marginLeft: Layout.spacing.l,
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.neutral.white,
   },
-  methodTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.secondary.default,
-    marginBottom: Layout.spacing.xs,
+  scrollView: {
+    flex: 1,
   },
-  methodDetail: {
-    fontSize: 14,
-    color: Colors.neutral.dark,
+  invoiceCard: {
+    backgroundColor: Colors.neutral.black,
+    padding: Layout.spacing.xl,
+    margin: Layout.spacing.m,
+    borderRadius: Layout.borderRadius.m,
+    borderWidth: 1,
+    borderColor: Colors.neutral.darker,
   },
-  summary: {
-    marginTop: Layout.spacing.xl,
-  },
-  summaryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.secondary.default,
-    marginBottom: Layout.spacing.l,
-  },
-  summaryRow: {
+  invoiceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: Layout.spacing.m,
+    marginBottom: Layout.spacing.s,
   },
-  summaryLabel: {
-    fontSize: 14,
-    color: Colors.neutral.dark,
+  invoiceLabel: {
+    fontSize: 16,
+    color: Colors.neutral.white,
   },
-  summaryValue: {
-    fontSize: 14,
-    color: Colors.secondary.default,
+  invoiceValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.neutral.white,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Colors.neutral.darker,
+    marginVertical: Layout.spacing.m,
   },
   totalRow: {
-    borderTopWidth: 1,
-    borderColor: Colors.neutral.lighter,
-    paddingTop: Layout.spacing.m,
     marginTop: Layout.spacing.m,
+    paddingTop: Layout.spacing.m,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral.darker,
   },
   totalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.secondary.default,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary.default,
   },
   totalValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.secondary.default,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.primary.default,
   },
-  payButton: {
-    marginTop: Layout.spacing.xl,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: Colors.neutral.white,
+  },
+  footer: {
+    paddingHorizontal: Layout.spacing.xl,
+    paddingTop: Layout.spacing.m,
+    paddingBottom: Layout.spacing.xl,
+    backgroundColor: Colors.neutral.black,
+  },
+  payNowButton: {
   },
 });

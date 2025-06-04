@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, SafeAreaView } from 'react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const USER_AVATAR = 'https://randomuser.me/api/portraits/men/32.jpg';
 const DRIVER_AVATAR = 'https://randomuser.me/api/portraits/men/45.jpg';
@@ -17,34 +18,37 @@ const TRIPS = Array(6).fill({
 });
 
 export default function HistoryScreen() {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Trip History</Text>
-        <Image source={{ uri: USER_AVATAR }} style={styles.avatar} />
-      </View>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {TRIPS.map((trip, idx) => (
-          <View key={idx} style={styles.card}>
-            <Image source={{ uri: trip.driverAvatar }} style={styles.driverAvatar} />
-            <View style={styles.cardContent}>
-              <Text style={styles.plate}>{trip.plate}</Text>
-              <Text style={styles.driver}>{trip.driver}</Text>
-              <Text style={styles.route}>{trip.route}</Text>
-              <View style={styles.ratingRow}>
-                {Array.from({ length: trip.rating }).map((_, i) => (
-                  <Text key={i} style={styles.star}>★</Text>
-                ))}
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.secondary.default }}>
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Trip History</Text>
+          <Image source={{ uri: USER_AVATAR }} style={styles.avatar} />
+        </View>
+        <ScrollView contentContainerStyle={{ ...styles.scrollContent, paddingBottom: insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
+          {TRIPS.map((trip, idx) => (
+            <View key={idx} style={styles.card}>
+              <Image source={{ uri: trip.driverAvatar }} style={styles.driverAvatar} />
+              <View style={styles.cardContent}>
+                <Text style={styles.plate}>{trip.plate}</Text>
+                <Text style={styles.driver}>{trip.driver}</Text>
+                <Text style={styles.route}>{trip.route}</Text>
+                <View style={styles.ratingRow}>
+                  {Array.from({ length: trip.rating }).map((_, i) => (
+                    <Text key={i} style={styles.star}>★</Text>
+                  ))}
+                </View>
+              </View>
+              <View style={styles.rightContent}>
+                <Text style={styles.price}>{trip.price}</Text>
+                <Text style={styles.distance}>{trip.distance}</Text>
               </View>
             </View>
-            <View style={styles.rightContent}>
-              <Text style={styles.price}>{trip.price}</Text>
-              <Text style={styles.distance}>{trip.distance}</Text>
-            </View>
-          </View>
-        ))}
-      </ScrollView>
-    </View>
+          ))}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 

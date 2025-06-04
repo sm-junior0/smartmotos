@@ -1,12 +1,14 @@
 import { Tabs } from 'expo-router';
 import { Home, MapPin, History, User, CreditCard } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native';
 import Colors from '@/constants/Colors';
 
 export default function TabLayout() {
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
+    <SafeAreaView style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
         tabBarStyle: {
           backgroundColor: Colors.secondary.default,
           borderTopWidth: 0,
@@ -53,5 +55,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </SafeAreaView>
   );
 }
