@@ -108,6 +108,7 @@ export default function RatingScreen() {
             <View style={styles.tagsSection}>
               <Text style={styles.tagsLabel}>
                 What went well?
+                
               </Text>
               <View style={styles.tagsList}>
                 {tags.map((tag) => (
