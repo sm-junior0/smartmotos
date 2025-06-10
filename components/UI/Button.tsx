@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ReactNode } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleProp,
   ViewStyle,
   TextStyle,
+  View,
 } from 'react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
@@ -20,6 +21,7 @@ interface ButtonProps {
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
   textStyle?: StyleProp<TextStyle>;
+  icon?: ReactNode;
 }
 
 export default function Button({
@@ -31,6 +33,7 @@ export default function Button({
   loading = false,
   style,
   textStyle,
+  icon,
 }: ButtonProps) {
   const getButtonStyle = () => {
     switch (variant) {
@@ -111,17 +114,20 @@ export default function Button({
           size="small"
         />
       ) : (
-        <Text
-          style={[
-            styles.text,
-            getTextStyle(),
-            getTextSizeStyle(),
-            disabled && styles.disabledText,
-            textStyle,
-          ]}
-        >
-          {title}
-        </Text>
+        <View style={styles.contentContainer}>
+          {icon && <View style={styles.iconContainer}>{icon}</View>}
+          <Text
+            style={[
+              styles.text,
+              getTextStyle(),
+              getTextSizeStyle(),
+              disabled && styles.disabledText,
+              textStyle,
+            ]}
+          >
+            {title}
+          </Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -194,5 +200,13 @@ const styles = StyleSheet.create({
   },
   largeText: {
     fontSize: 16,
+  },
+  contentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconContainer: {
+    marginRight: Layout.spacing.s,
   },
 });

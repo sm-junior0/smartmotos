@@ -125,14 +125,14 @@ export default function BookRideScreen() {
             ))}
           </View>
 
-          <View style={styles.checkboxContainer}>
+          {/* <View style={styles.checkboxContainer}>
             <Checkbox
               value={rideState.bookingDetails.bookForFriend}
               onValueChange={(value) => updateBookingDetails({ bookForFriend: value })}
               color={rideState.bookingDetails.bookForFriend ? Colors.primary.default : Colors.neutral.white}
             />
             <Text style={styles.checkboxLabel}>Book for a friend</Text>
-          </View>
+          </View> */}
         </View>
       </ScrollView>
       <View style={styles.bottomButtonContainer}>

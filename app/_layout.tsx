@@ -45,6 +45,7 @@ export default function RootLayout() {
         <Stack.Screen name="Auth/Verification" />
         <Stack.Screen name="Auth/VerificationSuccess" />
         <Stack.Screen name="Auth/VerificationError" />
+        <Stack.Screen name="driver" />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="light" />

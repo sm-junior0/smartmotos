@@ -28,7 +28,7 @@ export default function AccountScreen() {
   const [showTopUp, setShowTopUp] = useState(false);  
   const [showRefer, setShowRefer] = useState(false);
   const handleLogout = () => {
-    router.replace('/Auth/Login');
+    router.replace('../../Auth/login');
   };
 
   return (
@@ -84,7 +84,7 @@ export default function AccountScreen() {
         <MenuItem
           icon={<CreditCard size={24} color={Colors.secondary.default} />}
           title="Card and bank settings"
-          onPress={() => router.push('/(tabs)/payment')}
+          onPress={() => router.push('/Ride/payment')}
         />
         <MenuItem
           icon={<MessageCircle size={24} color={Colors.secondary.default} />}

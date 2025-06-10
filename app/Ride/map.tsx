@@ -5,7 +5,7 @@ import { Star, Phone, MessageSquare, Pause, Play, Menu, ChevronLeft, Search } fr
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
-import MapComponent from '@/components/common/MapComponent';
+import MapComponent from '@/components/Pcommon/MapComponent';
 import { useRide, DriverInfo, AvailableRide } from '@/hooks/useRideContext';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
 
