@@ -1,4 +1,12 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  SafeAreaView,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Bike } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
@@ -6,8 +14,11 @@ import Layout from '@/constants/Layout';
 import WalletCard from '@/components/Home/WalletCard';
 import TripHistoryList from '@/components/Home/TripHistoryList';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useContext } from 'react';
+import AuthContext from '@/app/Auth/context';
 
 export default function HomeScreen() {
+  const { user } = useContext(AuthContext);
   const navigateToProfile = () => {
     router.push('/profile');
   };
@@ -16,15 +27,23 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colors.primary.default }}>
       <View style={styles.container}>
-        <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+        >
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.greeting}>Welcome back,</Text>
-              <Text style={styles.username}>Gisele</Text>
+              <Text style={styles.username}>{user?.name}</Text>
             </View>
-            <TouchableOpacity onPress={navigateToProfile} style={styles.avatarWrap}>
+            <TouchableOpacity
+              onPress={navigateToProfile}
+              style={styles.avatarWrap}
+            >
               <Image
-                source={{ uri: 'https://images.pexels.com/photos/1933873/pexels-photo-1933873.jpeg?auto=compress&cs=tinysrgb&w=100' }}
+                source={{
+                  uri: 'https://images.pexels.com/photos/1933873/pexels-photo-1933873.jpeg?auto=compress&cs=tinysrgb&w=100',
+                }}
                 style={styles.avatar}
               />
             </TouchableOpacity>

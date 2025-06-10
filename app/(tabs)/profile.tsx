@@ -1,10 +1,38 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal, TextInput, Pressable, SafeAreaView } from 'react-native';
+import React, { useContext, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  Modal,
+  TextInput,
+  Pressable,
+  SafeAreaView,
+} from 'react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
-import { LogOut, Lock, User, Users, CreditCard, HelpCircle, ChevronRight, Edit, Check, Minus, Instagram, Facebook, MessageCircle, MoreHorizontal, MessageSquareText } from 'lucide-react-native';
+import {
+  LogOut,
+  Lock,
+  User,
+  Users,
+  CreditCard,
+  HelpCircle,
+  ChevronRight,
+  Edit,
+  Check,
+  Minus,
+  Instagram,
+  Facebook,
+  MessageCircle,
+  MoreHorizontal,
+  MessageSquareText,
+} from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AuthContext from '../Auth/context';
 
 const USER = {
   name: 'Gisele A.',
@@ -24,6 +52,7 @@ const SETTINGS = [
 ];
 
 export default function ProfileScreen() {
+  const { user, setUser } = useContext(AuthContext);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [showTopUp, setShowTopUp] = useState(false);
@@ -47,13 +76,32 @@ export default function ProfileScreen() {
     },
   ]);
 
+  // Add useEffect to redirect if no user
+  useEffect(() => {
+    if (!user) {
+      router.replace('/Auth/Login');
+    }
+  }, [user]);
+
+  // If no user, don't render the profile content
+  if (!user) {
+    return null;
+  }
+
+  const handleSignOut = () => {
+    setUser(null);
+    router.replace('/Auth/Login');
+  };
+
   // Remove card handler
   const removeCard = (idx: number) => {
     setCards(cards.filter((_, i) => i !== idx));
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colors.secondary.default }}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: Colors.secondary.default }}
+    >
       <View style={styles.container}>
         {/* Curved yellow header */}
         <View style={styles.headerBg}>
@@ -61,13 +109,25 @@ export default function ProfileScreen() {
             <View style={styles.walletInfo}>
               <Text style={styles.walletLabel}>Wallet Balance</Text>
               <View style={styles.walletAmountRow}>
-                <View style={styles.currencyTag}><Text style={styles.currencyText}>{USER.currencyCode}</Text></View>
-                <Text style={styles.walletAmount}>{USER.wallet}{USER.currency}</Text>
+                <View style={styles.currencyTag}>
+                  <Text style={styles.currencyText}>{USER.currencyCode}</Text>
+                </View>
+                <Text style={styles.walletAmount}>
+                  {USER.wallet}
+                  {USER.currency}
+                </Text>
               </View>
             </View>
             <View style={styles.walletButtons}>
-              <TouchableOpacity style={styles.topUpBtn} onPress={() => setShowTopUp(true)}><Text style={styles.topUpText}>Top up +</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.dedicatedBtn}><Text style={styles.dedicatedText}>Dedicated</Text></TouchableOpacity>
+              <TouchableOpacity
+                style={styles.topUpBtn}
+                onPress={() => setShowTopUp(true)}
+              >
+                <Text style={styles.topUpText}>Top up +</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.dedicatedBtn}>
+                <Text style={styles.dedicatedText}>Dedicated</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -79,10 +139,14 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
         {/* Name and email */}
-        <Text style={styles.name}>{USER.name}</Text>
-        <Text style={styles.email}>{USER.email}</Text>
+        <Text style={styles.name}>{user?.name || 'User'}</Text>
+        <Text style={styles.email}>{user?.email || ''}</Text>
         {/* Settings list */}
-        <ScrollView style={styles.settingsList} contentContainerStyle={{ paddingBottom: 32 + insets.bottom + 80 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.settingsList}
+          contentContainerStyle={{ paddingBottom: 32 + insets.bottom + 80 }}
+          showsVerticalScrollIndicator={false}
+        >
           {SETTINGS.map((item, idx: number) => (
             <View key={item.label}>
               <TouchableOpacity
@@ -97,13 +161,17 @@ export default function ProfileScreen() {
               >
                 <item.icon color={Colors.primary.default} size={22} />
                 <Text style={styles.settingsLabel}>{item.label}</Text>
-                <ChevronRight color={Colors.primary.default} size={22} style={styles.chevron} />
+                <ChevronRight
+                  color={Colors.primary.default}
+                  size={22}
+                  style={styles.chevron}
+                />
               </TouchableOpacity>
               <View style={styles.divider} />
             </View>
           ))}
           {/* Sign out */}
-          <TouchableOpacity style={styles.signOutRow}>
+          <TouchableOpacity style={styles.signOutRow} onPress={handleSignOut}>
             <LogOut color={Colors.primary.default} size={22} />
             <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
@@ -123,26 +191,45 @@ export default function ProfileScreen() {
                 keyboardType="numeric"
               />
               <TouchableOpacity
-                style={[styles.cardOption, selectedCard === 'existing' && styles.cardOptionSelected]}
+                style={[
+                  styles.cardOption,
+                  selectedCard === 'existing' && styles.cardOptionSelected,
+                ]}
                 onPress={() => setSelectedCard('existing')}
               >
-                <Text style={styles.cardOptionText}>Use bank card ***** **** **** 657</Text>
-                {selectedCard === 'existing' && <Check color={Colors.primary.default} size={22} />}
+                <Text style={styles.cardOptionText}>
+                  Use bank card ***** **** **** 657
+                </Text>
+                {selectedCard === 'existing' && (
+                  <Check color={Colors.primary.default} size={22} />
+                )}
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.cardOption, selectedCard === 'new' && styles.cardOptionSelected]}
+                style={[
+                  styles.cardOption,
+                  selectedCard === 'new' && styles.cardOptionSelected,
+                ]}
                 onPress={() => setSelectedCard('new')}
               >
                 <Text style={styles.cardOptionText}>Use a new card</Text>
-                {selectedCard === 'new' && <Check color={Colors.primary.default} size={22} />}
+                {selectedCard === 'new' && (
+                  <Check color={Colors.primary.default} size={22} />
+                )}
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.modalProceedBtn}
-                onPress={() => selectedCard === 'new' ? (setShowTopUp(false), setShowAddCard(true)) : setShowTopUp(false)}
+                onPress={() =>
+                  selectedCard === 'new'
+                    ? (setShowTopUp(false), setShowAddCard(true))
+                    : setShowTopUp(false)
+                }
               >
                 <Text style={styles.modalProceedText}>Proceed</Text>
               </TouchableOpacity>
-              <Pressable style={styles.modalCancelBtn} onPress={() => setShowTopUp(false)}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowTopUp(false)}
+              >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
             </View>
@@ -171,10 +258,19 @@ export default function ProfileScreen() {
                 <View style={styles.manageDot} />
                 <View style={styles.manageDot} />
               </View>
-              <TouchableOpacity style={styles.modalProceedBtn} onPress={() => { setShowManageCards(false); setShowAddCard(true); }}>
+              <TouchableOpacity
+                style={styles.modalProceedBtn}
+                onPress={() => {
+                  setShowManageCards(false);
+                  setShowAddCard(true);
+                }}
+              >
                 <Text style={styles.modalProceedText}>Add new card</Text>
               </TouchableOpacity>
-              <Pressable style={styles.modalCancelBtn} onPress={() => setShowManageCards(false)}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowManageCards(false)}
+              >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
             </View>
@@ -226,10 +322,16 @@ export default function ProfileScreen() {
                   />
                 </View>
               </View>
-              <TouchableOpacity style={styles.modalProceedBtn} onPress={() => setShowAddCard(false)}>
+              <TouchableOpacity
+                style={styles.modalProceedBtn}
+                onPress={() => setShowAddCard(false)}
+              >
                 <Text style={styles.modalProceedText}>Save</Text>
               </TouchableOpacity>
-              <Pressable style={styles.modalCancelBtn} onPress={() => setShowAddCard(false)}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowAddCard(false)}
+              >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
             </View>
@@ -242,12 +344,35 @@ export default function ProfileScreen() {
             <View style={styles.referSheet}>
               <Text style={styles.referTitle}>Refer a friend via</Text>
               <View style={styles.referOptionsRow}>
-                <View style={styles.referOption}><Text style={styles.referIcon}><MessageSquareText /></Text><Text style={styles.referLabel}>Whatsapp</Text></View>
-                <View style={styles.referOption}><Text style={styles.referIcon}><Facebook /></Text><Text style={styles.referLabel}>Facebook</Text></View>
-                <View style={styles.referOption}><Text style={styles.referIcon}><MessageCircle /></Text><Text style={styles.referLabel}>SMS</Text></View>
-                <View style={styles.referOption}><Text style={styles.referIcon}><MoreHorizontal /></Text><Text style={styles.referLabel}>Others</Text></View>
+                <View style={styles.referOption}>
+                  <Text style={styles.referIcon}>
+                    <MessageSquareText />
+                  </Text>
+                  <Text style={styles.referLabel}>Whatsapp</Text>
+                </View>
+                <View style={styles.referOption}>
+                  <Text style={styles.referIcon}>
+                    <Facebook />
+                  </Text>
+                  <Text style={styles.referLabel}>Facebook</Text>
+                </View>
+                <View style={styles.referOption}>
+                  <Text style={styles.referIcon}>
+                    <MessageCircle />
+                  </Text>
+                  <Text style={styles.referLabel}>SMS</Text>
+                </View>
+                <View style={styles.referOption}>
+                  <Text style={styles.referIcon}>
+                    <MoreHorizontal />
+                  </Text>
+                  <Text style={styles.referLabel}>Others</Text>
+                </View>
               </View>
-              <Pressable style={styles.modalCancelBtn} onPress={() => setShowRefer(false)}>
+              <Pressable
+                style={styles.modalCancelBtn}
+                onPress={() => setShowRefer(false)}
+              >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
             </View>

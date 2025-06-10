@@ -1,17 +1,28 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
-import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
-import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
+import {
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from '@expo-google-fonts/poppins';
 import { SplashScreen } from 'expo-router';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { RideProvider } from '@/hooks/useRideContext';
+import AuthContext from './Auth/context';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [user, setUser] = useState();
   useFrameworkReady();
 
   const [fontsLoaded, fontError] = useFonts({
@@ -37,6 +48,7 @@ export default function RootLayout() {
   }
 
   return (
+    <AuthContext.Provider value={{ user, setUser }}>
     <RideProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
@@ -50,5 +62,6 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="light" />
     </RideProvider>
+    </AuthContext.Provider>
   );
 }

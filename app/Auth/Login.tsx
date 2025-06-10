@@ -1,131 +1,14 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { useContext, useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import SocialAuthButtons from '@/components/UI/SocialAuthButtons';
-
-export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState({
-    email: '',
-    password: '',
-  });
-  const [loading, setLoading] = useState(false);
-
-  const validateForm = () => {
-    let isValid = true;
-    const newErrors = { email: '', password: '' };
-
-    if (!email) {
-      newErrors.email = 'Email is required';
-      isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Email is invalid';
-      isValid = false;
-    }
-
-    if (!password) {
-      newErrors.password = 'Password is required';
-      isValid = false;
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-      isValid = false;
-    }
-
-    setErrors(newErrors);
-    return isValid;
-  };
-
-  const handleLogin = () => {
-    if (!validateForm()) return;
-
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      // Navigate to the main app after successful login
-      router.push('/(tabs)');
-    }, 1500);
-  };
-
-  const handleGoogleLogin = () => {
-    // Implement Google login
-    console.log('Google login');
-  };
-
-  const handleFacebookLogin = () => {
-    // Implement Facebook login
-    console.log('Facebook login');
-  };
-
-  const handleAppleLogin = () => {
-    // Implement Apple login
-    console.log('Apple login');
-  };
-
-  const navigateToSignup = () => {
-    router.push('/Auth/Signup');
-  };
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Passenger Login</Text>
-      </View>
-
-      <View style={styles.formContainer}>
-        <Input
-          label="Email"
-          placeholder="your@email.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-          error={errors.email}
-        />
-
-        <Input
-          label="Password"
-          placeholder="Enter your password"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          error={errors.password}
-        />
-
-        <Button
-          title="Login"
-          onPress={handleLogin}
-          variant="primary"
-          size="large"
-          loading={loading}
-          style={styles.loginButton}
-        />
-
-        <TouchableOpacity onPress={() => console.log('Forgot password')}>
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
-        </TouchableOpacity>
-
-        <SocialAuthButtons
-          onGooglePress={handleGoogleLogin}
-          onFacebookPress={handleFacebookLogin}
-          onApplePress={handleAppleLogin}
-        />
-
-        <View style={styles.signupContainer}>
-          <Text style={styles.signupText}>Don't have an account?</Text>
-          <TouchableOpacity onPress={navigateToSignup}>
-            <Text style={styles.signupLink}>Sign Up</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-}
+import { login } from '@/services/auth';
+import { jwtDecode } from 'jwt-decode';
+import AuthContext from './context';
 
 const styles = StyleSheet.create({
   container: {
@@ -171,3 +54,143 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+export default function Login() {
+  const authContext = useContext(AuthContext);
+  const [phone, setPhone] = useState('+250');
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({
+    phone: '',
+    password: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handlePhoneChange = (value: string) => {
+    if (value.startsWith('+250')) {
+      setPhone(value);
+    } else if (value.length < phone.length) {
+      // If deleting, don't allow deleting the prefix
+      setPhone('+250');
+    } else {
+      // If adding numbers, ensure prefix exists
+      setPhone('+250' + value.replace('+250', ''));
+    }
+  };
+
+  const validateForm = () => {
+    let isValid = true;
+    const newErrors = { phone: '', password: '' };
+
+    // Validate phone number format: +250XXXXXXXXX
+    const phoneRegex = /^\+250[0-9]{9}$/;
+    if (!phone) {
+      newErrors.phone = 'Phone number is required';
+      isValid = false;
+    } else if (!phoneRegex.test(phone)) {
+      newErrors.phone = 'Phone number must be in format: +250XXXXXXXXX';
+      isValid = false;
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+      isValid = false;
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
+  const handleLogin = async () => {
+    if (!validateForm()) return;
+    setLoading(true);
+    const result = await login(phone, password);
+    if (result.success && result.data) {
+      setLoading(false);
+      const user = jwtDecode(result.data.token);
+      authContext.setUser(user);
+      router.push('/(tabs)');
+    } else {
+      setLoading(false);
+      Alert.alert('Login failed', result.error, [
+        { text: 'OK', onPress: () => router.replace('/Auth/Login') },
+      ]);
+    }
+  };
+
+  const handleGoogleLogin = () => {
+    // Implement Google login
+    console.log('Google login');
+  };
+
+  const handleFacebookLogin = () => {
+    // Implement Facebook login
+    console.log('Facebook login');
+  };
+
+  const handleAppleLogin = () => {
+    // Implement Apple login
+    console.log('Apple login');
+  };
+
+  const navigateToSignup = () => {
+    router.push('/Auth/Signup');
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Passenger Login</Text>
+      </View>
+
+      <View style={styles.formContainer}>
+        <Input
+          label="Phone"
+          placeholder="+250XXXXXXXXX"
+          keyboardType="phone-pad"
+          autoCapitalize="none"
+          value={phone}
+          onChangeText={handlePhoneChange}
+          error={errors.phone}
+        />
+
+        <Input
+          label="Password"
+          placeholder="Enter your password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          error={errors.password}
+        />
+
+        <Button
+          title="Login"
+          onPress={handleLogin}
+          variant="primary"
+          size="large"
+          loading={loading}
+          style={styles.loginButton}
+        />
+
+        <TouchableOpacity onPress={() => router.push('/Account/Password/forgot')}>
+          <Text style={styles.forgotPassword}>Forgot Password?</Text>
+        </TouchableOpacity>
+
+        <SocialAuthButtons
+          onGooglePress={handleGoogleLogin}
+          onFacebookPress={handleFacebookLogin}
+          onApplePress={handleAppleLogin}
+        />
+
+        <View style={styles.signupContainer}>
+          <Text style={styles.signupText}>Don't have an account?</Text>
+          <TouchableOpacity onPress={navigateToSignup}>
+            <Text style={styles.signupLink}>Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
