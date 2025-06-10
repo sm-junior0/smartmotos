@@ -19,9 +19,9 @@ interface SignupData {
   confirm_password: string;
 }
 
-interface ApiResponse {
+interface ApiResponse<T = any> {
   success: boolean;
-  data?: LoginResponse;
+  data?: T;
   message?: string;
   error?: string;
 }
@@ -31,6 +31,20 @@ interface VerificationResponse {
   message?: string;
   error?: string;
 }
+
+export interface AccountDetails {
+  name: string;
+  email: string;
+  phone: string;
+}
+
+const getAuthHeaders = async () => {
+  const token = await SecureStore.getItemAsync('token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+};
 
 export const signup = async (data: SignupData): Promise<ApiResponse> => {
   try {
@@ -183,5 +197,32 @@ export const resetPassword = async (phone: string, code: string, newPassword: st
       success: false,
       error: 'Network error. Please try again.',
     };
+  }
+};
+
+export const getAccountDetails = async (): Promise<ApiResponse<AccountDetails>> => {
+  try {
+    const response = await fetch(`${API_URL}/account/details`, {
+      method: 'GET',
+      headers: await getAuthHeaders(),
+    });
+    const data = await response.json();
+    return { success: response.ok, data, error: data.error };
+  } catch (error) {
+    return { success: false, error: 'Failed to fetch account details' };
+  }
+};
+
+export const updateAccountDetails = async (details: Omit<AccountDetails, 'phone'>): Promise<ApiResponse<AccountDetails>> => {
+  try {
+    const response = await fetch(`${API_URL}/account/details`, {
+      method: 'PUT',
+      headers: await getAuthHeaders(),
+      body: JSON.stringify(details),
+    });
+    const data = await response.json();
+    return { success: response.ok, data: data.user, error: data.error, message: data.message };
+  } catch (error) {
+    return { success: false, error: 'Failed to update account details' };
   }
 }; 
