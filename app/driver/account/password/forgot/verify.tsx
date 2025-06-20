@@ -1,12 +1,28 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, StatusBar } from 'react-native'
-import React, { useState, useRef } from 'react'
-import { colors, typography, spacing, borderRadius } from '@/styles/theme'
-import { Stack, useRouter } from 'expo-router'
+import {
+  StyleSheet,
+  Text,
+  View,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import React, { useState, useRef } from 'react';
+import { colors, typography, spacing, borderRadius } from '@/styles/theme';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { resetDriverPassword } from '@/services/driver';
 
 const ForgotPasswordVerify = () => {
   const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const inputRefs = useRef<TextInput[]>([]);
   const router = useRouter();
+  const { phone } = useLocalSearchParams<{ phone: string }>();
 
   const handleCodeChange = (text: string, index: number) => {
     const newCode = [...code];
@@ -18,23 +34,60 @@ const ForgotPasswordVerify = () => {
       inputRefs.current[index + 1]?.focus();
     } else if (text === '' && index > 0) {
       // Move to the previous input field if the current one is cleared
-       inputRefs.current[index - 1]?.focus();
+      inputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handleVerifyCode = () => {
-    const enteredCode = code.join('');
-    // Handle code verification logic here
-    console.log('Verify code button pressed with code:', enteredCode);
-    // Navigate to the create new password screen on successful verification
-    router.push('./forgot/create-new-password');
+  const validateForm = () => {
+    const verificationCode = code.join('');
+    if (verificationCode.length !== 6) {
+      setError('Please enter the complete verification code');
+      return false;
+    }
+    if (!newPassword) {
+      setError('New password is required');
+      return false;
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return false;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    return true;
+  };
+
+  const handleVerifyCode = async () => {
+    if (!validateForm()) return;
+
+    setLoading(true);
+    const result = await resetDriverPassword(
+      phone || '',
+      code.join(''),
+      newPassword,
+      confirmPassword
+    );
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert('Success', result.message, [
+        {
+          text: 'OK',
+          onPress: () => router.replace('/driver/auth/login'),
+        },
+      ]);
+    } else {
+      setError(result.error || 'Failed to reset password');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Forgot password',
+          title: 'Verify Code',
           headerStyle: { backgroundColor: colors.background.default },
           headerTintColor: colors.text.primary,
           headerShadowVisible: false,
@@ -42,33 +95,60 @@ const ForgotPasswordVerify = () => {
       />
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.contentContainer}>
+      <View style={styles.formContainer}>
         <Text style={styles.label}>
-          Enter the 6-digit code we sent to your phone
+          Enter the verification code sent to your phone
         </Text>
-
-        <View style={styles.codeInputContainer}>
+        <View style={styles.codeContainer}>
           {code.map((digit, index) => (
             <TextInput
               key={index}
               ref={(ref) => {
-                if (ref) {
-                  inputRefs.current[index] = ref;
-                }
+                if (ref) inputRefs.current[index] = ref;
               }}
               style={styles.codeInput}
               value={digit}
               onChangeText={(text) => handleCodeChange(text, index)}
               keyboardType="number-pad"
               maxLength={1}
-              textAlign="center"
+              placeholder="0"
               placeholderTextColor={colors.text.secondary}
             />
           ))}
         </View>
 
-        <TouchableOpacity style={styles.verifyButton} onPress={handleVerifyCode}>
-          <Text style={styles.verifyButtonText}>Verify</Text>
+        <Text style={styles.label}>Enter new password</Text>
+        <TextInput
+          style={styles.input}
+          value={newPassword}
+          onChangeText={setNewPassword}
+          placeholder="New password"
+          placeholderTextColor={colors.text.secondary}
+          secureTextEntry
+        />
+
+        <Text style={styles.label}>Confirm new password</Text>
+        <TextInput
+          style={styles.input}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Confirm password"
+          placeholderTextColor={colors.text.secondary}
+          secureTextEntry
+        />
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        <TouchableOpacity
+          style={[styles.verifyButton, loading && styles.disabledButton]}
+          onPress={handleVerifyCode}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.primary.contrastText} />
+          ) : (
+            <Text style={styles.verifyButtonText}>Reset Password</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -81,50 +161,65 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.default,
-    padding: spacing.md,
   },
-  contentContainer: {
+  formContainer: {
     padding: spacing.md,
     backgroundColor: colors.background.paper,
     borderRadius: borderRadius.md,
     marginTop: spacing.md,
-    alignItems: 'center',
+    marginHorizontal: spacing.md,
   },
   label: {
     fontFamily: typography.fontFamily.semiBold,
     fontSize: typography.fontSize.md,
     color: colors.text.primary,
-    marginBottom: spacing.lg,
-    textAlign: 'center',
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
   },
-  codeInputContainer: {
+  codeContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: spacing.lg,
-    width: '80%', // Adjust width as needed
   },
   codeInput: {
-    width: 40,
-    height: 40,
     backgroundColor: colors.background.default,
     color: colors.text.primary,
+    width: 45,
+    height: 45,
     borderRadius: borderRadius.sm,
     fontSize: typography.fontSize.lg,
-    fontFamily: typography.fontFamily.bold,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    textAlign: 'center',
+    fontFamily: typography.fontFamily.regular,
+  },
+  input: {
+    backgroundColor: colors.background.default,
+    color: colors.text.primary,
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.regular,
+    marginBottom: spacing.md,
+  },
+  errorText: {
+    color: colors.error.main,
+    fontSize: typography.fontSize.sm,
+    fontFamily: typography.fontFamily.regular,
+    marginBottom: spacing.md,
+    textAlign: 'center',
   },
   verifyButton: {
-    marginTop: spacing.md,
     backgroundColor: colors.primary.main,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.md,
     alignItems: 'center',
-    width: '100%',
+    marginTop: spacing.md,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   verifyButtonText: {
     color: colors.primary.contrastText,
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
   },
-}); 
+});

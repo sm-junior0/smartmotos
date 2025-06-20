@@ -1,6 +1,7 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from 'expo-secure-store'
+import { notificationService } from './notification';
 
-const API_URL = 'http://10.12.74.26:5000/api';
+const API_URL = 'http://192.168.8.100:5000/api';
 
 interface LoginResponse {
   token: string;
@@ -38,8 +39,18 @@ export interface AccountDetails {
   phone: string;
 }
 
+export interface DriverOnboardingData {
+  name: string;
+  phone: string;
+  service_provider: 'MTN' | 'Airtel';
+  vehicle_type: 'bike' | 'car';
+  license_number: string;
+  password: string;
+  confirm_password: string;
+}
+
 const getAuthHeaders = async () => {
-  const token = await SecureStore.getItemAsync('token');
+  const token = await SecureStore.getItemAsync('userToken'); // <-- fix here
   return {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`,
@@ -100,6 +111,10 @@ export const login = async (phone: string, password: string): Promise<ApiRespons
       await SecureStore.setItemAsync('userToken', data.token);
       await SecureStore.setItemAsync('userData', JSON.stringify(data.passenger));
       
+      // Initialize WebSocket connection with user context
+      notificationService.setUserContext(data.passenger.id.toString(), 'passenger');
+      notificationService.initialize();
+      
       return {
         success: true,
         data: data,
@@ -115,6 +130,28 @@ export const login = async (phone: string, password: string): Promise<ApiRespons
       success: false,
       error: error instanceof Error ? error.message : 'An error occurred during login',
     };
+  }
+};
+
+export const driverLogin = async (phone: string, password: string): Promise<ApiResponse> => {
+  try {
+    const response = await fetch(`${API_URL}/driver/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, password }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Login failed' };
+    }
+    if (data.token) {
+      await SecureStore.setItemAsync('driverToken', data.token);
+      await SecureStore.setItemAsync('driverData', JSON.stringify(data.driver));
+      return { success: true, data: data.driver };
+    }
+    return { success: false, error: 'Invalid response from server' };
+  } catch (error) {
+    return { success: false, error: 'Network error. Please try again.' };
   }
 };
 
@@ -201,15 +238,23 @@ export const resetPassword = async (phone: string, code: string, newPassword: st
 };
 
 export const getAccountDetails = async (): Promise<ApiResponse<AccountDetails>> => {
+  const token = await SecureStore.getItemAsync('userToken');
   try {
     const response = await fetch(`${API_URL}/account/details`, {
       method: 'GET',
-      headers: await getAuthHeaders(),
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
     });
     const data = await response.json();
-    return { success: response.ok, data, error: data.error };
-  } catch (error) {
-    return { success: false, error: 'Failed to fetch account details' };
+    if (response.ok) {
+      return { success: true, data };
+    } else {
+      return { success: false, error: data.error || 'Failed to fetch details' };
+    }
+  } catch (e) {
+    return { success: false, error: e.message };
   }
 };
 
@@ -225,4 +270,71 @@ export const updateAccountDetails = async (details: Omit<AccountDetails, 'phone'
   } catch (error) {
     return { success: false, error: 'Failed to update account details' };
   }
-}; 
+};
+
+export const changePassword = async (
+  old_password: string,
+  new_password: string,
+  confirm_password: string
+): Promise<ApiResponse> => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/password/change`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        old_password,
+        new_password,
+        confirm_password,
+      }),
+    });
+    const data = await response.json();
+    return {
+      success: response.ok,
+      message: data.message,
+      error: data.error,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Failed to change password',
+    };
+  }
+};
+
+export const driverOnboarding = async (data: DriverOnboardingData): Promise<ApiResponse> => {
+  try {
+    const response = await fetch(`${API_URL}/driver/onboarding`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const resData = await response.json();
+    return {
+      success: response.ok && resData.success,
+      message: resData.message,
+      data: resData,
+      error: !response.ok ? resData.message : undefined,
+    };
+  } catch (error) {
+    return { success: false, error: 'Network error. Please try again.' };
+  }
+};
+
+export const verifyDriverPhone = async (phone: string, code: string): Promise<ApiResponse> => {
+  try {
+    const response = await fetch(`${API_URL}/driver/verify/phone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, code }),
+    });
+    const data = await response.json();
+    return {
+      success: response.ok && data.success,
+      message: data.message,
+      error: data.error,
+    };
+  } catch (error) {
+    return { success: false, error: 'Network error. Please try again.' };
+  }
+};

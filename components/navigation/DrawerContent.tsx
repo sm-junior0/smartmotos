@@ -4,6 +4,8 @@ import { DrawerContentScrollView } from '@react-navigation/drawer';
 import { useRouter, usePathname, Link } from 'expo-router';
 import { colors, typography, spacing, borderRadius } from '@/styles/theme';
 import { Chrome as Home, Car, User, LogOut, Star } from 'lucide-react-native';
+import { getDriverProfile } from '@/services/profile';
+import type { DriverProfile } from '@/services/profile';
 
 const PROFILE_IMAGE =
   'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=300';
@@ -16,7 +18,23 @@ const menuItems = [
 
 export default function DrawerContent(props: any) {
   const router = useRouter();
-  const pathname = usePathname(); // get the current path
+  const pathname = usePathname();
+  const [profile, setProfile] = React.useState<DriverProfile | null>(null);
+
+  React.useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const result = await getDriverProfile();
+      if (result.success && result.data) {
+        setProfile(result.data);
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    }
+  };
 
   const handleSignOut = () => {
     router.replace('/driver/auth/login');
@@ -26,7 +44,7 @@ export default function DrawerContent(props: any) {
     <DrawerContentScrollView {...props} style={styles.container}>
       <View style={styles.profileSection}>
         <Image source={{ uri: PROFILE_IMAGE }} style={styles.profileImage} />
-        <Text style={styles.name}>Manene Junior</Text>
+        <Text style={styles.name}>{profile?.phone || '+250 XXX XXX XXX'}</Text>
         <View style={styles.ratingContainer}>
           {[...Array(5)].map((_, index) => (
             <Star
@@ -46,10 +64,7 @@ export default function DrawerContent(props: any) {
             <Link
               key={index}
               href={item.route}
-              style={[
-                styles.menuItem,
-                isActive && styles.activeMenuItem, // if active, apply active style
-              ]}
+              style={[styles.menuItem, isActive && styles.activeMenuItem]}
               onPress={() => props.navigation.closeDrawer()}
             >
               <View>

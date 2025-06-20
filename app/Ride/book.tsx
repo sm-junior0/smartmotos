@@ -1,109 +1,165 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Text, TouchableOpacity, SafeAreaView } from 'react-native';
+import type { BookingDetails } from '@/types';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+} from 'react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import { useRide } from '@/hooks/useRideContext';
-import Checkbox from 'expo-checkbox';
 import { ChevronLeft, Search } from 'lucide-react-native';
+import { bookingService } from '@/services/bookingService';
+import { LocationPicker } from '@/components/Pcommon/LocationPicker';
+import { mockGoogleServices } from '@/services/mockGoogleServices';
 
 // Dummy payment methods for demonstration
 const PAYMENT_METHODS = [
-  { label: 'Wallet', value: 'wallet' },
-  { label: 'Credit Card', value: 'card' },
-  { label: 'JDM PLBS', value: 'jdm_plbs' },
+  { label: 'Cash', value: 'cash' },
+  { label: 'Mobile Money', value: 'mobile_money' },
+  { label: 'Card', value: 'card' },
 ];
 
 export default function BookRideScreen() {
   const { rideState, updateBookingDetails, setRideStatus } = useRide();
+  const [loading, setLoading] = useState(false);
+  const [pickupCoords, setPickupCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
-  const handleAddStop = () => {
-    updateBookingDetails({ stops: [...rideState.bookingDetails.stops, ''] });
+  const handleLocationSelect = async (
+    type: 'pickup' | 'dropoff',
+    location: string,
+    coordinates: { lat: number; lng: number }
+  ) => {
+    if (type === 'pickup') {
+      setPickupCoords(coordinates);
+      updateBookingDetails({ pickup: location });
+    } else {
+      setDropoffCoords(coordinates);
+      updateBookingDetails({ dropoff: location });
+    }
+
+    // If both locations are selected, calculate route
+    if (
+      (type === 'pickup' && dropoffCoords) ||
+      (type === 'dropoff' && pickupCoords)
+    ) {
+      const origin = type === 'pickup' ? coordinates : pickupCoords!;
+      const destination = type === 'pickup' ? dropoffCoords! : coordinates;
+
+      try {
+        const route = await mockGoogleServices.getRoute(origin, destination);
+        updateBookingDetails({
+          distance: route.distance.value / 1000, // Convert to km
+          duration: route.duration.value / 60, // Convert to minutes
+          polyline: route.polyline,
+        });
+      } catch (error) {
+        console.error('Error calculating route:', error);
+      }
+    }
   };
 
-  const handleRemoveStop = (index: number) => {
-    updateBookingDetails({
-      stops: rideState.bookingDetails.stops.filter((_, i) => i !== index),
-    });
-  };
+  const handleDone = async () => {
+    if (!pickupCoords || !dropoffCoords) {
+      Alert.alert('Error', 'Please select both pickup and dropoff locations');
+      return;
+    }
 
-  const handleUpdateStop = (index: number, value: string) => {
-    updateBookingDetails({
-      stops: rideState.bookingDetails.stops.map((stop, i) => (i === index ? value : stop)),
-    });
-  };
+    if (!rideState.bookingDetails.paymentMethod) {
+      Alert.alert('Error', 'Please select a payment method');
+      return;
+    }
 
-  const handleDone = () => {
-    // Assuming "Done" on this screen leads to the map view to confirm pickup/dropoff
-    setRideStatus('booking_map');
-    router.push('/Ride/map');
+    try {
+      setLoading(true);
+      const booking = await bookingService.createBooking({
+        pickup_location: pickupCoords,
+        dropoff_location: dropoffCoords,
+        pickup_time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+        payment_method: rideState.bookingDetails.paymentMethod,
+        bargain_amount: rideState.bookingDetails.bargainAmount,
+      });
+
+      updateBookingDetails({
+        bookingId: booking.booking_id,
+        driverId: booking.driver_id,
+        fare: booking.fare,
+        status: booking.status,
+      });
+
+      setRideStatus('booking_map');
+      router.push('/Ride/map');
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      Alert.alert('Error', 'Failed to create booking. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
           <ChevronLeft size={24} color={Colors.neutral.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>BOOK SEAT</Text>
+        <Text style={styles.headerTitle}>BOOK RIDE</Text>
         <TouchableOpacity style={styles.searchButton}>
           <Search size={24} color={Colors.neutral.white} />
         </TouchableOpacity>
       </View>
       <ScrollView style={styles.container}>
         <View style={styles.content}>
-          <Input
+          <LocationPicker
             label="Pickup Location"
             placeholder="Enter pickup location"
             value={rideState.bookingDetails.pickup}
-            onChangeText={(text) => updateBookingDetails({ pickup: text })}
+            onLocationSelect={(location, coords) =>
+              handleLocationSelect('pickup', location, coords)
+            }
             style={styles.input}
             labelStyle={styles.inputLabel}
-            placeholderTextColor={Colors.neutral.medium}
           />
 
-          <Input
+          <LocationPicker
             label="Drop-off Location"
             placeholder="Enter drop-off location"
             value={rideState.bookingDetails.dropoff}
-            onChangeText={(text) => updateBookingDetails({ dropoff: text })}
+            onLocationSelect={(location, coords) =>
+              handleLocationSelect('dropoff', location, coords)
+            }
             style={styles.input}
             labelStyle={styles.inputLabel}
-            placeholderTextColor={Colors.neutral.medium}
           />
 
-          {rideState.bookingDetails.stops.map((stop, index) => (
-            <View key={index} style={styles.stopContainer}>
-              <Input
-                label={`Stop ${index + 1}`}
-                placeholder="Enter stop location"
-                value={stop}
-                onChangeText={(text) => handleUpdateStop(index, text)}
-                containerStyle={styles.stopInput}
-                style={styles.input}
-                labelStyle={styles.inputLabel}
-                placeholderTextColor={Colors.neutral.medium}
-              />
-              {index > 0 && (
-                <Button
-                  title="Remove"
-                  onPress={() => handleRemoveStop(index)}
-                  variant="outline"
-                  size="small"
-                  style={styles.removeButton}
-                />
-              )}
+          {rideState.bookingDetails.distance && (
+            <View style={styles.routeInfo}>
+              <Text style={styles.routeInfoText}>
+                Distance: {rideState.bookingDetails.distance.toFixed(1)} km
+              </Text>
+              <Text style={styles.routeInfoText}>
+                Duration: {Math.round(rideState.bookingDetails.duration || 0)}{' '}
+                mins
+              </Text>
             </View>
-          ))}
-
-          <Button
-            title="Add Stop"
-            onPress={handleAddStop}
-            variant="outline"
-            style={styles.addButton}
-          />
+          )}
 
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Mode of payment</Text>
@@ -111,12 +167,15 @@ export default function BookRideScreen() {
               <TouchableOpacity
                 key={method.value}
                 style={styles.paymentMethodItem}
-                onPress={() => updateBookingDetails({ paymentMethod: method.value })}
+                onPress={() =>
+                  updateBookingDetails({ paymentMethod: method.value })
+                }
               >
                 <Text
                   style={[
                     styles.paymentMethodText,
-                    rideState.bookingDetails.paymentMethod === method.value && styles.selectedPaymentMethodText,
+                    rideState.bookingDetails.paymentMethod === method.value &&
+                      styles.selectedPaymentMethodText,
                   ]}
                 >
                   {method.label}
@@ -125,22 +184,28 @@ export default function BookRideScreen() {
             ))}
           </View>
 
-          {/* <View style={styles.checkboxContainer}>
-            <Checkbox
-              value={rideState.bookingDetails.bookForFriend}
-              onValueChange={(value) => updateBookingDetails({ bookForFriend: value })}
-              color={rideState.bookingDetails.bookForFriend ? Colors.primary.default : Colors.neutral.white}
+          <View style={styles.fareContainer}>
+            <Text style={styles.fareLabel}>Bargain Amount (Optional)</Text>
+            <Input
+              placeholder="Enter amount in RWF"
+              value={rideState.bookingDetails.bargainAmount?.toString() || ''}
+              onChangeText={(text) => {
+                const amount = text ? parseFloat(text) : undefined;
+                updateBookingDetails({ bargainAmount: amount });
+              }}
+              keyboardType="numeric"
+              style={styles.fareInput}
             />
-            <Text style={styles.checkboxLabel}>Book for a friend</Text>
-          </View> */}
+          </View>
         </View>
       </ScrollView>
       <View style={styles.bottomButtonContainer}>
-         <Button
-           title="Done"
-           onPress={handleDone}
-           style={styles.doneButton}
-         />
+        <Button
+          title={loading ? 'Creating Booking...' : 'Confirm Booking'}
+          onPress={handleDone}
+          style={styles.doneButton}
+          disabled={loading}
+        />
       </View>
     </SafeAreaView>
   );
@@ -191,22 +256,16 @@ const styles = StyleSheet.create({
     marginBottom: Layout.spacing.s,
     color: Colors.neutral.white,
   },
-  stopContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  stopInput: {
-    flex: 1,
-    marginRight: Layout.spacing.s,
-  },
-  removeButton: {
-    marginBottom: Layout.spacing.m,
-    height: 50, // Adjust height to align with input
-    justifyContent: 'center',
-  },
-  addButton: {
-    marginTop: Layout.spacing.s,
+  routeInfo: {
+    backgroundColor: Colors.neutral.dark,
+    borderRadius: Layout.borderRadius.m,
+    padding: Layout.spacing.m,
     marginBottom: Layout.spacing.l,
+  },
+  routeInfoText: {
+    color: Colors.neutral.white,
+    fontSize: 14,
+    marginBottom: Layout.spacing.xs,
   },
   sectionContainer: {
     marginTop: Layout.spacing.l,
@@ -231,17 +290,22 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.primary.default,
   },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  fareContainer: {
     marginBottom: Layout.spacing.xl,
   },
-  checkboxLabel: {
-    marginLeft: Layout.spacing.s,
+  fareLabel: {
     fontSize: 16,
+    fontWeight: '600',
+    marginBottom: Layout.spacing.s,
     color: Colors.neutral.white,
   },
-   bottomButtonContainer: {
+  fareInput: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: Layout.borderRadius.m,
+    paddingHorizontal: Layout.spacing.m,
+    paddingVertical: Layout.spacing.m,
+  },
+  bottomButtonContainer: {
     padding: Layout.spacing.xl,
     backgroundColor: Colors.neutral.black,
   },

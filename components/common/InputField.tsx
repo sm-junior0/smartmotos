@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  TextInput, 
-  Text, 
-  StyleSheet, 
-  ViewStyle, 
+import {
+  View,
+  TextInput,
+  Text,
+  StyleSheet,
+  ViewStyle,
   TextStyle,
   TouchableOpacity,
 } from 'react-native';
@@ -70,24 +70,26 @@ const InputField: React.FC<InputFieldProps> = ({
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      
+
       <View
         style={[
           styles.inputContainer,
           {
             borderColor: getBorderColor(),
-            backgroundColor: disabled ? colors.background.light : colors.background.paper,
+            backgroundColor: disabled
+              ? colors.background.light
+              : colors.background.paper,
           },
         ]}
       >
         {leftIcon && <View style={styles.iconContainer}>{leftIcon}</View>}
-        
+
         <TextInput
           style={[
             styles.input,
             inputStyle,
             leftIcon ? { paddingLeft: 0 } : null,
-            (rightIcon || showPasswordToggle) ? { paddingRight: 0 } : null,
+            rightIcon || showPasswordToggle ? { paddingRight: 0 } : null,
             multiline ? { textAlignVertical: 'top' } : null,
           ]}
           placeholder={placeholder}
@@ -104,7 +106,7 @@ const InputField: React.FC<InputFieldProps> = ({
           numberOfLines={multiline ? numberOfLines : undefined}
           maxLength={maxLength}
         />
-        
+
         {showPasswordToggle && (
           <TouchableOpacity
             style={styles.iconContainer}
@@ -117,12 +119,12 @@ const InputField: React.FC<InputFieldProps> = ({
             )}
           </TouchableOpacity>
         )}
-        
+
         {rightIcon && !showPasswordToggle && (
           <View style={styles.iconContainer}>{rightIcon}</View>
         )}
       </View>
-      
+
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );

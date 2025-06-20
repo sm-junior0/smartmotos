@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+} from 'react-native';
 import { Link, router } from 'expo-router';
 import { colors, typography, spacing } from '@/styles/theme';
 import Button from '@/components/common/Button';
 import InputField from '@/components/common/InputField';
 import SocialButtons from '@/components/common/SocialButtons';
+import { driverLogin } from '@/services/auth';
 
 export default function DriverLoginScreen() {
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
@@ -33,16 +41,34 @@ export default function DriverLoginScreen() {
     return valid;
   };
 
-  const handleLogin = () => {
-    if (validateForm()) {
-      setLoading(true);
-      
-      // Simulate API call
-      setTimeout(() => {
-        setLoading(false);
-        // Navigate to driver home upon successful login
-        router.replace('/driver/home');
-      }, 1500);
+  const handleLogin = async () => {
+    if (!validateForm()) return;
+    setLoading(true);
+
+    // Only allow phone login (as per backend)
+    const phone = phoneOrEmail.trim();
+    const result = await driverLogin(phone, password);
+
+    setLoading(false);
+
+    if (result.success) {
+      router.replace('/driver/home');
+    } else {
+      let message = result.error || 'Login failed';
+      if (message.toLowerCase().includes('not verified')) {
+        message =
+          'Your account is not verified. Please verify your phone number.';
+      }
+      if (message.toLowerCase().includes('driver not found')) {
+        message = 'No driver found with this phone number.';
+      }
+      if (message.toLowerCase().includes('invalid credentials')) {
+        message = 'Incorrect password.';
+      }
+      if (message.toLowerCase().includes('disabled')) {
+        message = 'Your account is disabled. Contact support.';
+      }
+      setErrors({ ...errors, password: message });
     }
   };
 
@@ -59,7 +85,7 @@ export default function DriverLoginScreen() {
     >
       <View style={styles.content}>
         <Text style={styles.headerTitle}>Driver Login</Text>
-        
+
         <View style={styles.form}>
           <InputField
             placeholder="Phone or Email"
@@ -68,7 +94,7 @@ export default function DriverLoginScreen() {
             keyboardType="email-address"
             error={errors.phoneOrEmail}
           />
-          
+
           <InputField
             placeholder="Password"
             value={password}
@@ -77,11 +103,11 @@ export default function DriverLoginScreen() {
             showPasswordToggle
             error={errors.password}
           />
-          
-          <TouchableOpacity style={styles.forgotPasswordContainer}>
+
+          <TouchableOpacity style={styles.forgotPasswordContainer} onPress={() => router.push('/driver/account/password/forgot')}>
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
-          
+
           <Button
             text="Login"
             onPress={handleLogin}
@@ -90,13 +116,13 @@ export default function DriverLoginScreen() {
             style={styles.loginButton}
           />
         </View>
-        
+
         <SocialButtons
           onFacebookPress={() => handleSocialLogin('Facebook')}
           onTwitterPress={() => handleSocialLogin('Twitter')}
           onGooglePress={() => handleSocialLogin('Google')}
         />
-        
+
         <View style={styles.signupContainer}>
           <Text style={styles.signupText}>Don't have an account? </Text>
           <Link href="/driver/auth/signup" asChild>

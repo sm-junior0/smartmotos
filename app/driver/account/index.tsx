@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
 import {
@@ -25,6 +26,9 @@ import {
 import { Menu } from 'lucide-react-native';
 import { colors, typography, spacing, borderRadius } from '@/styles/theme';
 import { useRouter } from 'expo-router';
+import { getDriverProfile } from '@/services/profile';
+import type { DriverProfile } from '@/services/profile';
+import * as SecureStore from 'expo-secure-store';
 
 type MenuItemProps = {
   icon: React.ReactNode;
@@ -35,13 +39,59 @@ type MenuItemProps = {
 export default function App() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const router = useRouter();
+  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const isDrawOpen = useDrawerStatus() === 'open';
 
-  const handleSignout = () => {
-    console.log('Sign out clicked');
-    router.replace('/driver/auth/login');
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const result = await getDriverProfile();
+      if (result.success && result.data) {
+        setProfile(result.data);
+      } else {
+        setError(result.error || 'Failed to load profile');
+      }
+    } catch (err) {
+      setError('An error occurred while loading profile');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSignout = async () => {
+    try {
+      await SecureStore.deleteItemAsync('driverToken');
+      await SecureStore.deleteItemAsync('driverData');
+      router.replace('/driver/auth/login');
+    } catch (err) {
+      console.error('Error signing out:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#FFD700" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -64,15 +114,19 @@ export default function App() {
           <Text style={styles.walletLabel}>Wallet Balance</Text>
           <View style={styles.balanceRow}>
             <View style={styles.momoTag}>
-              <Text style={styles.momoText}>Momo</Text>
+              <Text style={styles.momoText}>
+                {profile?.service_provider || 'Momo'}
+              </Text>
             </View>
             <Text style={styles.balanceText}>24,000 Rwf</Text>
           </View>
         </View>
 
-        {/* Dedicated badge */}
+        {/* Status badge */}
         <View style={styles.dedicatedContainer}>
-          <Text style={styles.dedicatedText}>Dedicated</Text>
+          <Text style={styles.dedicatedText}>
+            {profile?.status || 'Offline'}
+          </Text>
         </View>
       </View>
 
@@ -87,12 +141,17 @@ export default function App() {
               }}
               style={styles.profileImage}
             />
-            <TouchableOpacity style={styles.editButton}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => router.push('/driver/account/profile-settings')}
+            >
               <FontAwesome name="pencil" size={18} color="black" />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.profileName}>Manene Junior</Text>
+          <Text style={styles.profileName}>
+            {profile?.name || 'Update Profile'}
+          </Text>
 
           <View style={styles.ratingContainer}>
             {[1, 2, 3].map((i) => (
@@ -113,7 +172,7 @@ export default function App() {
             ))}
           </View>
 
-          <Text style={styles.phoneNumber}>+250 798 384 666</Text>
+          <Text style={styles.phoneNumber}>{profile?.phone || ''}</Text>
         </View>
 
         {/* Menu options */}
@@ -154,9 +213,7 @@ function MenuItem({ icon, title, onPress }: MenuItemProps) {
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress}>
       <View style={styles.menuItemLeft}>
-        <View style={styles.menuItemIcon}>
-          {icon}
-        </View>
+        <View style={styles.menuItemIcon}>{icon}</View>
         <Text style={styles.menuItemText}>{title}</Text>
       </View>
       <Ionicons name="chevron-forward" size={24} color="#FFD700" />
@@ -319,5 +376,26 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.lg,
     fontFamily: typography.fontFamily.bold,
     marginLeft: spacing.sm,
+  },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: 'red',
+    fontSize: typography.fontSize.lg,
+    textAlign: 'center',
+    marginHorizontal: spacing.lg,
+  },
+  retryButton: {
+    marginTop: spacing.md,
+    padding: spacing.sm,
+    backgroundColor: colors.primary.main,
+    borderRadius: borderRadius.sm,
+  },
+  retryButtonText: {
+    color: colors.text.primary,
+    fontSize: typography.fontSize.md,
+    fontFamily: typography.fontFamily.medium,
   },
 });

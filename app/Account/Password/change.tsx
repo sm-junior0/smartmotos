@@ -1,15 +1,65 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, SafeAreaView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  SafeAreaView,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { changePassword } from '@/services/auth';
 
 export default function ChangePassword() {
   const router = useRouter();
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Error', 'All fields are required');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'New password must be at least 6 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    const result = await changePassword(
+      oldPassword,
+      newPassword,
+      confirmPassword
+    );
+    setLoading(false);
+    if (result.success) {
+      Alert.alert(
+        'Success',
+        result.message || 'Password changed successfully',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } else if (
+      result.error &&
+      result.error.toLowerCase().includes('old password is incorrect')
+    ) {
+      Alert.alert('Error', 'Old password is incorrect');
+    } else {
+      Alert.alert('Error', result.error || 'Failed to change password');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -21,13 +71,42 @@ export default function ChangePassword() {
       </View>
       <View style={styles.form}>
         <Text style={styles.label}>Enter old password</Text>
-        <TextInput style={styles.input} value={oldPassword} onChangeText={setOldPassword} placeholder="Password" placeholderTextColor={Colors.neutral.light} secureTextEntry />
+        <TextInput
+          style={styles.input}
+          value={oldPassword}
+          onChangeText={setOldPassword}
+          placeholder="Password"
+          placeholderTextColor={Colors.neutral.light}
+          secureTextEntry
+        />
         <Text style={styles.label}>Enter new password</Text>
-        <TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} placeholder="Password" placeholderTextColor={Colors.neutral.light} secureTextEntry />
+        <TextInput
+          style={styles.input}
+          value={newPassword}
+          onChangeText={setNewPassword}
+          placeholder="Password"
+          placeholderTextColor={Colors.neutral.light}
+          secureTextEntry
+        />
         <Text style={styles.label}>Confirm new password</Text>
-        <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Password" placeholderTextColor={Colors.neutral.light} secureTextEntry />
-        <TouchableOpacity style={styles.saveBtn}>
-          <Text style={styles.saveText}>Save</Text>
+        <TextInput
+          style={styles.input}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          placeholder="Password"
+          placeholderTextColor={Colors.neutral.light}
+          secureTextEntry
+        />
+        <TouchableOpacity
+          style={styles.saveBtn}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.secondary.default} />
+          ) : (
+            <Text style={styles.saveText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -85,4 +164,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 18,
   },
-}); 
+});

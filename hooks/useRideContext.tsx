@@ -1,15 +1,34 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 // Define the possible states of a ride
-export type RideStatus = 'idle' | 'booking_form' | 'booking_map' | 'searching' | 'accepted' | 'enroute' | 'paused' | 'arrived' | 'payment' | 'completed' | 'rating';
+export type RideStatus =
+  | 'idle'
+  | 'booking_form'
+  | 'booking_map'
+  | 'searching'
+  | 'accepted'
+  | 'enroute'
+  | 'paused'
+  | 'arrived'
+  | 'payment'
+  | 'completed'
+  | 'rating';
 
 // Define the structure of the booking details
 export interface BookingDetails {
-  pickup: string;
-  dropoff: string;
-  stops: string[];
-  paymentMethod: string;
-  bookForFriend: boolean;
+  pickup?: string;
+  dropoff?: string;
+  distance?: number;
+  duration?: number;
+  polyline?: string;
+  paymentMethod?: string;
+  bargainAmount?: number;
+  bookingId?: number;
+  driverId?: number;
+  fare?: number;
+  status?: string;
+  stops?: string[];
+  bookForFriend?: boolean;
 }
 
 // Define the structure of the driver information
@@ -64,46 +83,48 @@ const RideContext = createContext<RideContextType | undefined>(undefined);
 
 // Create the provider component
 export const RideProvider = ({ children }: { children: ReactNode }) => {
-  const [rideState, setRideState] = useState<RideState>(
-    {
-      status: 'idle',
-      bookingDetails: {
-        pickup: '',
-        dropoff: '',
-        stops: [''],
-        paymentMethod: '',
-        bookForFriend: false,
-      },
-      currentDriver: null,
-      currentTrip: null,
-      availableRides: [],
-    }
-  );
+  const [rideState, setRideState] = useState<RideState>({
+    status: 'idle',
+    bookingDetails: {
+      pickup: '',
+      dropoff: '',
+      stops: [],
+      paymentMethod: '',
+      bookForFriend: false,
+      distance: 0,
+      duration: 0,
+    },
+    currentDriver: null,
+    currentTrip: null,
+    availableRides: [],
+  });
 
   const setRideStatus = (status: RideStatus) => {
-    setRideState(prevState => ({ ...prevState, status }));
+    setRideState((prevState) => ({ ...prevState, status }));
   };
 
   const updateBookingDetails = (details: Partial<BookingDetails>) => {
-    setRideState(prevState => ({
+    setRideState((prevState) => ({
       ...prevState,
       bookingDetails: { ...prevState.bookingDetails, ...details },
     }));
   };
 
   const setCurrentDriver = (driver: DriverInfo | null) => {
-    setRideState(prevState => ({ ...prevState, currentDriver: driver }));
+    setRideState((prevState) => ({ ...prevState, currentDriver: driver }));
   };
 
   const setCurrentTrip = (trip: Partial<TripDetails> | null) => {
-    setRideState(prevState => ({
+    setRideState((prevState) => ({
       ...prevState,
-      currentTrip: trip ? { ...prevState.currentTrip, ...trip } as TripDetails : null,
+      currentTrip: trip
+        ? ({ ...prevState.currentTrip, ...trip } as TripDetails)
+        : null,
     }));
   };
 
   const setAvailableRides = (rides: AvailableRide[]) => {
-    setRideState(prevState => ({ ...prevState, availableRides: rides }));
+    setRideState((prevState) => ({ ...prevState, availableRides: rides }));
   };
 
   // Add other state modification functions here
@@ -118,9 +139,7 @@ export const RideProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <RideContext.Provider value={contextValue}>
-      {children}
-    </RideContext.Provider>
+    <RideContext.Provider value={contextValue}>{children}</RideContext.Provider>
   );
 };
 
@@ -131,4 +150,4 @@ export const useRide = () => {
     throw new Error('useRide must be used within a RideProvider');
   }
   return context;
-}; 
+};

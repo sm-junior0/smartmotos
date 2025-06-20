@@ -1,34 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { colors, typography, spacing } from '@/styles/theme';
 import Button from '@/components/common/Button';
 import OtpInput from '@/components/common/OtpInput';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat } from 'react-native-reanimated';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+} from 'react-native-reanimated';
+import { verifyDriverPhone } from '@/services/auth';
 
 export default function OtpVerificationScreen() {
+  const { phone } = useLocalSearchParams();
   const [otp, setOtp] = useState('');
   const [timeLeft, setTimeLeft] = useState(60);
   const [resendDisabled, setResendDisabled] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   // Animation for error message
   const shakeValue = useSharedValue(0);
   const errorOpacity = useSharedValue(0);
-  
+
   const shakeStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateX: shakeValue.value }],
     };
   });
-  
+
   const errorStyle = useAnimatedStyle(() => {
     return {
       opacity: errorOpacity.value,
     };
   });
-  
+
+  // Validate phone number on mount
+  useEffect(() => {
+    if (!phone) {
+      setError('Phone number is missing. Please go back and try again.');
+      errorOpacity.value = withTiming(1, { duration: 300 });
+    }
+  }, [phone]);
+
   // Countdown timer for OTP resend
   useEffect(() => {
     if (timeLeft > 0) {
@@ -40,57 +62,73 @@ export default function OtpVerificationScreen() {
       setResendDisabled(false);
     }
   }, [timeLeft]);
-  
-  const handleVerifyOtp = () => {
-    if (otp.length !== 5) {
-      setError('Please enter a valid 4-digit OTP');
+
+  const handleVerifyOtp = async () => {
+    if (!phone) {
+      setError('Phone number is missing. Please go back and try again.');
       errorOpacity.value = withTiming(1, { duration: 300 });
-      shakeValue.value = withRepeat(
-        withTiming(10, { duration: 100 }), 
-        5, 
-        true
-      );
+      return;
+    }
+
+    if (otp.length !== 6) {
+      setError('Please enter a valid 6-digit OTP');
+      errorOpacity.value = withTiming(1, { duration: 300 });
+      shakeValue.value = withRepeat(withTiming(10, { duration: 100 }), 5, true);
       setTimeout(() => {
         shakeValue.value = withTiming(0);
       }, 500);
       return;
     }
-    
+
     setError('');
     setLoading(true);
-    
-    // Simulate API call to verify OTP
-    setTimeout(() => {
+
+    try {
+      const result = await verifyDriverPhone(phone as string, otp);
       setLoading(false);
-      
-      // For demonstration purposes, we'll show success screen 
-      // In a real app, this would be based on API response
-      const isSuccess = Math.random() > 0.3; // 70% chance of success
-      
-      if (isSuccess) {
-        router.push({
-          pathname: '/driver/auth/license-validation-result',
-          params: { status: 'success' }
-        });
+
+      if (result.success) {
+        // OTP verified, show success and go to driver login
+        router.replace('/driver/auth/login');
       } else {
-        router.push({
-          pathname: '/driver/auth/license-validation-result',
-          params: { status: 'error' }
-        });
+        setError(result.error || 'Verification failed');
+        errorOpacity.value = withTiming(1, { duration: 300 });
+        shakeValue.value = withRepeat(
+          withTiming(10, { duration: 100 }),
+          5,
+          true
+        );
+        setTimeout(() => {
+          shakeValue.value = withTiming(0);
+        }, 500);
       }
-    }, 1500);
+    } catch (err) {
+      setLoading(false);
+      setError('Network error. Please try again.');
+      errorOpacity.value = withTiming(1, { duration: 300 });
+    }
   };
-  
+
   const handleResendOtp = () => {
+    if (!phone) {
+      setError('Phone number is missing. Please go back and try again.');
+      errorOpacity.value = withTiming(1, { duration: 300 });
+      return;
+    }
+
     // Reset timer and disable resend button
     setTimeLeft(60);
     setResendDisabled(true);
-    
-    // Clear any existing OTP
+
+    // Clear any existing OTP and error
     setOtp('');
-    
-    // Show success message
-    // You would normally trigger an API call here to resend OTP
+    setError('');
+
+    // TODO: Implement resend OTP API call here
+  };
+
+  const handleGoBack = () => {
+    router.back();
   };
 
   return (
@@ -101,36 +139,35 @@ export default function OtpVerificationScreen() {
     >
       <View style={styles.content}>
         <Text style={styles.headerTitle}>Verification</Text>
-        <Text style={styles.headerSubtitle}>We've sent a verification code to your phone number</Text>
-        
+        <Text style={styles.headerSubtitle}>
+          {phone
+            ? `We've sent a verification code to ${phone}`
+            : 'Phone number is missing. Please go back and try again.'}
+        </Text>
+
         <View style={styles.form}>
           <Animated.View style={shakeStyle}>
-            <OtpInput
-              length={5}
-              value={otp}
-              onChange={setOtp}
-              autoFocus
-            />
+            <OtpInput length={6} value={otp} onChange={setOtp} autoFocus />
           </Animated.View>
-          
+
           <Animated.Text style={[styles.errorText, errorStyle]}>
             {error}
           </Animated.Text>
-          
+
           <View style={styles.timerContainer}>
             <Text style={styles.timerText}>
-              {resendDisabled 
-                ? `Resend code in ${timeLeft}s` 
-                : 'Didn\'t receive the code?'}
+              {resendDisabled
+                ? `Resend code in ${timeLeft}s`
+                : "Didn't receive the code?"}
             </Text>
-            
+
             {!resendDisabled && (
               <TouchableOpacity onPress={handleResendOtp}>
                 <Text style={styles.resendText}>Resend Code</Text>
               </TouchableOpacity>
             )}
           </View>
-          
+
           <Button
             text="Verify"
             onPress={handleVerifyOtp}
@@ -138,6 +175,10 @@ export default function OtpVerificationScreen() {
             fullWidth
             style={styles.verifyButton}
           />
+
+          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -205,5 +246,13 @@ const styles = StyleSheet.create({
   },
   verifyButton: {
     marginTop: spacing.lg,
+  },
+  backButton: {
+    marginTop: spacing.lg,
+  },
+  backButtonText: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.md,
+    color: colors.primary.main,
   },
 });

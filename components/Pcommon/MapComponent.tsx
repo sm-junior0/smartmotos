@@ -1,102 +1,124 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Polyline, Marker, Region } from 'react-native-maps';
-import { Ionicons, FontAwesome, MaterialIcons } from '@expo/vector-icons';
-
-interface Coordinate {
-  latitude: number;
-  longitude: number;
-}
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { MapPin, Navigation } from 'lucide-react-native';
+import Colors from '@/constants/Colors';
 
 interface MapComponentProps {
-  routeCoordinates: Coordinate[];
-  availableRideLocations: { latitude: number; longitude: number }[];
-  currentLocation: Coordinate | null;
+  userLocation: { latitude: number; longitude: number } | null;
+  pickupLocation?: string;
+  dropoffLocation?: string;
+  polyline?: string;
+  driverLocation?: { latitude: number; longitude: number };
 }
 
-const MapComponent = ({ routeCoordinates, currentLocation }: MapComponentProps) => {
-  // Calculate midpoint of the route
-  const getMidpoint = (coordinates: Coordinate[]): Coordinate | null => {
-    if (coordinates.length < 2) return null;
-    const midIndex = Math.floor(coordinates.length / 2);
-    return coordinates[midIndex];
+export default function MapComponent({
+  userLocation,
+  pickupLocation,
+  dropoffLocation,
+  polyline,
+  driverLocation,
+}: MapComponentProps) {
+  const mapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    if (mapRef.current && userLocation) {
+      mapRef.current.animateToRegion({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      });
+    }
+  }, [userLocation]);
+
+  useEffect(() => {
+    if (mapRef.current && polyline) {
+      // Convert polyline string to coordinates
+      const points = polyline.split('|').map((point) => {
+        const [lat, lng] = point.split(',').map(Number);
+        return { latitude: lat, longitude: lng };
+      });
+
+      // Fit map to show all points
+      mapRef.current.fitToCoordinates(points, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+    }
+  }, [polyline]);
+
+  const renderPolyline = () => {
+    if (!polyline) return null;
+
+    const points = polyline.split('|').map((point) => {
+      const [lat, lng] = point.split(',').map(Number);
+      return { latitude: lat, longitude: lng };
+    });
+
+    return (
+      <Polyline
+        coordinates={points}
+        strokeColor={Colors.primary.default}
+        strokeWidth={3}
+      />
+    );
   };
 
-  const midpoint = getMidpoint(routeCoordinates);
-
   return (
-    <MapView
-      style={styles.map}
-      initialRegion={{
-        latitude: currentLocation?.latitude || -1.9440,
-        longitude: currentLocation?.longitude || 30.0618,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      }}
-    >
-      {/* Blue route line (only render if routeCoordinates is non-empty) */}
-      {routeCoordinates.length > 0 && (
-        <Polyline
-          coordinates={routeCoordinates}
-          strokeColor="#0066FF"
-          strokeWidth={5}
-        />
-      )}
-      {/* Driver marker (only render if routeCoordinates[1] exists) */}
-      {routeCoordinates[1] && (
-        <Marker coordinate={routeCoordinates[1]}>
-          <View style={styles.motorcycleMarker}>
-            <FontAwesome name="motorcycle" size={20} color="#000" />
-          </View>
-        </Marker>
-      )}
-      {/* Enroute marker at midpoint */}
-      {midpoint && (
-        <Marker coordinate={midpoint}>
-          <View style={styles.enrouteMarker}>
-            <MaterialIcons name="directions" size={24} color="#FF6B6B" />
-          </View>
-        </Marker>
-      )}
-      {/* Current location marker (only render if routeCoordinates[3] exists) */}
-      {routeCoordinates[3] && (
-        <Marker coordinate={routeCoordinates[3]}>
-          <View style={styles.locationMarker}>
-            <Ionicons name="location" size={24} color="#00BCD4" />
-          </View>
-        </Marker>
-      )}
-    </MapView>
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={{
+          latitude: -1.9534,
+          longitude: 30.0944,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
+        }}
+      >
+        {userLocation && (
+          <Marker coordinate={userLocation}>
+            <View style={styles.userMarker}>
+              <MapPin size={24} color={Colors.primary.default} />
+            </View>
+          </Marker>
+        )}
+
+        {driverLocation && (
+          <Marker coordinate={driverLocation}>
+            <View style={styles.driverMarker}>
+              <Navigation size={24} color={Colors.primary.default} />
+            </View>
+          </Marker>
+        )}
+
+        {renderPolyline()}
+      </MapView>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
   },
-  motorcycleMarker: {
-    backgroundColor: '#FFD700',
-    borderRadius: 15,
-    padding: 5,
-  },
-  locationMarker: {
-    backgroundColor: 'transparent',
-  },
-  enrouteMarker: {
-    backgroundColor: 'white',
-    borderRadius: 20,
+  userMarker: {
     padding: 8,
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 20,
     borderWidth: 2,
-    borderColor: '#FF6B6B',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderColor: Colors.primary.default,
+  },
+  driverMarker: {
+    padding: 8,
+    backgroundColor: Colors.neutral.white,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: Colors.primary.default,
   },
 });
-
-export default MapComponent;

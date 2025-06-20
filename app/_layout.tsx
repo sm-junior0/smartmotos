@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -16,13 +16,20 @@ import {
 import { SplashScreen } from 'expo-router';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { RideProvider } from '@/hooks/useRideContext';
-import AuthContext from './Auth/context';
+import { useColorScheme } from 'react-native';
+import NotificationHandler from '@/components/common/NotificationHandler';
+import { AuthProvider } from '@/hooks/AuthContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete
 SplashScreen.preventAutoHideAsync();
 
+export const unstable_settings = {
+  // Ensure that reloading on `/modal` keeps a back button present.
+  initialRouteName: 'index',
+};
+
 export default function RootLayout() {
-  const [user, setUser] = useState();
+  const colorScheme = useColorScheme();
   useFrameworkReady();
 
   const [fontsLoaded, fontError] = useFonts({
@@ -48,20 +55,17 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
-    <RideProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="Auth/Login" />
-        <Stack.Screen name="Auth/Signup" />
-        <Stack.Screen name="Auth/Verification" />
-        <Stack.Screen name="Auth/VerificationSuccess" />
-        <Stack.Screen name="Auth/VerificationError" />
-        <Stack.Screen name="driver" />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-      <StatusBar style="light" />
-    </RideProvider>
-    </AuthContext.Provider>
+    <AuthProvider>
+      <RideProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="driver" />
+          <Stack.Screen name="Auth" />
+          <Stack.Screen name="(tabs)" />
+        </Stack>
+        <StatusBar style="light" />
+        <NotificationHandler />
+      </RideProvider>
+    </AuthProvider>
   );
 }
