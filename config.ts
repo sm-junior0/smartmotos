@@ -1,8 +1,8 @@
 // API Configuration
-export const API_URL = 'http://192.168.8.100:5000/api/';
+export const API_URL = 'http://10.11.75.249:5000/api/';
 
 // WebSocket Configuration
-export const WS_URL = 'ws://192.168.8.100:8081';
+export const WS_URL = 'ws://10.11.75.249:5000/ws';
 
 // Google Maps Configuration
 export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
