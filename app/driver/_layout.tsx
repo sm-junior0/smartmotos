@@ -9,6 +9,7 @@ function DriverLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <AuthProvider>
     <View style={{ flex: 1 }}>
       <Stack>
         <Stack.Screen name="home" options={{ headerShown: false }} />
@@ -19,14 +20,15 @@ function DriverLayout() {
       </Stack>
       <DriverNotification />
     </View>
+    </AuthProvider>
   );
 }
 
 // Wrap the exported component with AuthProvider at the highest level
-export default function WrappedDriverLayout() {
-  return (
-    <AuthProvider>
-      <DriverLayout />
-    </AuthProvider>
-  );
-}
+// export default function WrappedDriverLayout() {
+//   return (
+//     <AuthProvider>
+//       <DriverLayout />
+//     </AuthProvider>
+//   );
+// }
