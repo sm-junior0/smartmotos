@@ -32,7 +32,7 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AuthContext from '../Auth/context';
+import { useAuth } from '@/hooks/AuthContext';
 
 const USER = {
   name: 'Gisele A.',
@@ -52,7 +52,7 @@ const SETTINGS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, setUser } = useContext(AuthContext);
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [showTopUp, setShowTopUp] = useState(false);
@@ -89,7 +89,7 @@ export default function ProfileScreen() {
   }
 
   const handleSignOut = () => {
-    setUser(null);
+    signOut();
     router.replace('/Auth/Login');
   };
 

@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_BASE_URL } from '../config';
+import { API_URL } from '../config';
 
 export interface DriverProfile {
   id: number;
@@ -25,7 +25,7 @@ export const getDriverProfile = async (): Promise<ApiResponse> => {
       return { success: false, error: 'No authentication token found' };
     }
 
-    const response = await fetch(`${API_BASE_URL}/driver/profile`, {
+    const response = await fetch(`${API_URL}/driver/profile`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -51,7 +51,7 @@ export const updateDriverProfile = async (profileData: Partial<DriverProfile>): 
       return { success: false, error: 'No authentication token found' };
     }
 
-    const response = await fetch(`${API_BASE_URL}/driver/profile`, {
+    const response = await fetch(`${API_URL}/driver/profile`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,

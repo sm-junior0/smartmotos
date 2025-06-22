@@ -14,10 +14,19 @@ export type RideStatus =
   | 'completed'
   | 'rating';
 
+// Define the structure of a location object
+export interface LocationDetails {
+  description: string;
+  coords: {
+    lat: number;
+    lng: number;
+  };
+}
+
 // Define the structure of the booking details
 export interface BookingDetails {
-  pickup?: string;
-  dropoff?: string;
+  pickup?: LocationDetails;
+  dropoff?: LocationDetails;
   distance?: number;
   duration?: number;
   polyline?: string;
@@ -86,10 +95,8 @@ export const RideProvider = ({ children }: { children: ReactNode }) => {
   const [rideState, setRideState] = useState<RideState>({
     status: 'idle',
     bookingDetails: {
-      pickup: '',
-      dropoff: '',
       stops: [],
-      paymentMethod: '',
+      paymentMethod: 'cash',
       bookForFriend: false,
       distance: 0,
       duration: 0,

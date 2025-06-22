@@ -1,22 +1,33 @@
 import { API_URL, ENDPOINTS } from '../config';
 import { Location, Payment, Notification } from '../types';
+import * as SecureStore from 'expo-secure-store';
 
 // Helper function to handle API responses
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'An error occurred' }));
+    const error = await response.json().catch(() => ({
+      message: 'An error occurred',
+      error: response.statusText,
+    }));
     throw new Error(error.message || `HTTP error! status: ${response.status}`);
   }
-  return response.json();
+  const data = await response.json();
+  console.log(data);
+  return data;
 }
 
 // Helper function to get default headers
-function getHeaders(): HeadersInit {
+async function getHeaders(): Promise<HeadersInit> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   };
   
-  const token = localStorage.getItem('token');
+  // Prioritize driver token, then fall back to user token
+  let token = await SecureStore.getItemAsync('driverToken');
+  if (!token) {
+    token = await SecureStore.getItemAsync('userToken');
+  }
+  
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
@@ -26,8 +37,9 @@ function getHeaders(): HeadersInit {
 
 export const apiService = {
   async get<T>(endpoint: string): Promise<T> {
+    const headers = await getHeaders();
     return fetch(`${API_URL}${endpoint}`, {
-      headers: getHeaders(),
+      headers,
     }).then(handleResponse<T>);
   },
 
@@ -39,7 +51,7 @@ export const apiService = {
   ): Promise<Payment> {
     return fetch(`${API_URL}${ENDPOINTS.PROCESS_PAYMENT}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         booking_id: bookingId,
         amount,
@@ -54,7 +66,7 @@ export const apiService = {
     withdrawn: number;
   }> {
     return fetch(`${API_URL}${ENDPOINTS.DRIVER_EARNINGS}/${driverId}`, {
-      headers: getHeaders(),
+      headers: await getHeaders(),
     }).then(handleResponse<{
       total: number;
       available: number;
@@ -65,7 +77,7 @@ export const apiService = {
   async requestWithdrawal(driverId: string, amount: number, method: string) {
     return fetch(`${API_URL}${ENDPOINTS.REQUEST_WITHDRAWAL}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         driver_id: driverId,
         amount,
@@ -76,7 +88,7 @@ export const apiService = {
 
   async getPaymentHistory(rideId: string): Promise<Payment[]> {
     return fetch(`${API_URL}${ENDPOINTS.PROCESS_PAYMENT}/history/${rideId}`, {
-      headers: getHeaders(),
+      headers: await getHeaders(),
     }).then(handleResponse<Payment[]>);
   },
 
@@ -90,7 +102,7 @@ export const apiService = {
   ): Promise<Notification> {
     return fetch(`${API_URL}${ENDPOINTS.SEND_NOTIFICATION}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         user_id: userId,
         user_type: userType,
@@ -103,14 +115,14 @@ export const apiService = {
 
   async getNotifications(userType: string, userId: string): Promise<Notification[]> {
     return fetch(`${API_URL}${ENDPOINTS.GET_NOTIFICATIONS}/${userType}/${userId}`, {
-      headers: getHeaders(),
+      headers: await getHeaders(),
     }).then(handleResponse<Notification[]>);
   },
 
   async markNotificationRead(notificationId: string) {
     return fetch(`${API_URL}${ENDPOINTS.MARK_NOTIFICATION_READ}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         notification_id: notificationId,
       }),
@@ -120,7 +132,7 @@ export const apiService = {
   async markAllNotificationsRead(userId: string, userType: string) {
     return fetch(`${API_URL}${ENDPOINTS.MARK_ALL_NOTIFICATIONS_READ}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         user_id: userId,
         user_type: userType,
@@ -131,7 +143,7 @@ export const apiService = {
   async sendWeatherAlert(driverId: string, condition: string, severity: string) {
     return fetch(`${API_URL}${ENDPOINTS.WEATHER_ALERT}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         driver_id: driverId,
         condition,
@@ -143,14 +155,14 @@ export const apiService = {
   // Demand tracking endpoints
   async getDemandZones() {
     return fetch(`${API_URL}${ENDPOINTS.GET_DEMAND_ZONES}`, {
-      headers: getHeaders(),
+      headers: await getHeaders(),
     }).then(handleResponse);
   },
 
   async getNearbyDrivers(location: Location, radius?: number) {
     return fetch(`${API_URL}${ENDPOINTS.GET_NEARBY_DRIVERS}`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: JSON.stringify({
         latitude: location.latitude,
         longitude: location.longitude,
@@ -160,14 +172,31 @@ export const apiService = {
   },
 
   async updateDriverLocation(driverId: string, location: Location) {
+    const headers = await getHeaders();
     return fetch(`${API_URL}${ENDPOINTS.UPDATE_DRIVER_LOCATION}`, {
-      method: 'POST',
-      headers: getHeaders(),
+      method: 'PUT',
+      headers,
       body: JSON.stringify({
-        driver_id: driverId,
         latitude: location.latitude,
         longitude: location.longitude,
       }),
+    }).then(handleResponse);
+  },
+
+  async updateDriverStatus(driverId: string, status: 'available' | 'unavailable') {
+    return fetch(`${API_URL}${ENDPOINTS.UPDATE_DRIVER_STATUS}`, {
+        method: 'PUT',
+        headers: await getHeaders(),
+        body: JSON.stringify({
+            status: status
+        }),
+    }).then(handleResponse);
+  },
+
+  async getDriverProfile(driverId: string) {
+    const headers = await getHeaders();
+    return fetch(`${API_URL}/driver/${driverId}/profile`, {
+      headers,
     }).then(handleResponse);
   },
 }; 

@@ -1,3 +1,17 @@
+// Polyfill for CustomEvent in React Native
+if (typeof global.CustomEvent !== 'function') {
+  class CustomEvent<T> {
+    type: string;
+    detail: T | null;
+
+    constructor(typeArg: string, eventInitDict?: { detail: T }) {
+      this.type = typeArg;
+      this.detail = eventInitDict?.detail ?? null;
+    }
+  }
+  global.CustomEvent = CustomEvent as any;
+}
+
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -59,7 +73,7 @@ export default function RootLayout() {
       <RideProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="driver" />
+          <Stack.Screen name="driver" options={{ headerShown: false }} />
           <Stack.Screen name="Auth" />
           <Stack.Screen name="(tabs)" />
         </Stack>

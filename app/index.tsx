@@ -33,9 +33,7 @@ export default function Index() {
   };
 
   if (isLoading) {
-    return (
-      <View style={styles.loadingContainer} />
-    );
+    return <View style={styles.loadingContainer} />;
   }
 
   if (showOnboarding) {
@@ -49,7 +47,6 @@ export default function Index() {
     />
   );
 }
-
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,

@@ -46,10 +46,14 @@ export default function BookRideScreen() {
   ) => {
     if (type === 'pickup') {
       setPickupCoords(coordinates);
-      updateBookingDetails({ pickup: location });
+      updateBookingDetails({
+        pickup: { description: location, coords: coordinates },
+      });
     } else {
       setDropoffCoords(coordinates);
-      updateBookingDetails({ dropoff: location });
+      updateBookingDetails({
+        dropoff: { description: location, coords: coordinates },
+      });
     }
 
     // If both locations are selected, calculate route
@@ -105,7 +109,20 @@ export default function BookRideScreen() {
       router.push('/Ride/map');
     } catch (error) {
       console.error('Error creating booking:', error);
-      Alert.alert('Error', 'Failed to create booking. Please try again.');
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+
+      if (errorMessage.includes('No available drivers nearby')) {
+        Alert.alert(
+          'No Drivers Available',
+          'Sorry, there are no available drivers nearby. Please try again in a few moments.'
+        );
+      } else {
+        Alert.alert(
+          'Booking Error',
+          'Failed to create your booking. Please check your details and try again.'
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -130,7 +147,7 @@ export default function BookRideScreen() {
           <LocationPicker
             label="Pickup Location"
             placeholder="Enter pickup location"
-            value={rideState.bookingDetails.pickup}
+            value={rideState.bookingDetails.pickup?.description ?? ''}
             onLocationSelect={(location, coords) =>
               handleLocationSelect('pickup', location, coords)
             }
@@ -141,7 +158,7 @@ export default function BookRideScreen() {
           <LocationPicker
             label="Drop-off Location"
             placeholder="Enter drop-off location"
-            value={rideState.bookingDetails.dropoff}
+            value={rideState.bookingDetails.dropoff?.description ?? ''}
             onLocationSelect={(location, coords) =>
               handleLocationSelect('dropoff', location, coords)
             }

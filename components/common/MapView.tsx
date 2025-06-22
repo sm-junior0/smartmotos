@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, Platform, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { colors } from '@/styles/theme';
 import RNMapView, { Marker } from 'react-native-maps';
 
@@ -29,24 +29,16 @@ const defaultRegion = {
   longitudeDelta: 0.0421,
 };
 
-// Web fallback component
-const WebMapFallback = ({ style }: { style?: object }) => (
-  <View style={[styles.container, style, styles.webPlaceholder]}>
-    <Text style={styles.webText}>Map view is not available on web platform</Text>
-    <Text style={styles.webSubText}>Please use the mobile app to access the full map features</Text>
-  </View>
-);
-
 // Main MapView implementation
-const MapView = ({ style, initialRegion = defaultRegion, markers = [] }: MapViewProps) => {
-  if (Platform.OS === 'web') {
-    return <WebMapFallback style={style} />;
-  }
-
+const MapView = ({
+  style,
+  initialRegion = defaultRegion,
+  markers = [],
+}: MapViewProps) => {
   return (
     <RNMapView
       style={[styles.container, style]}
-      provider={Platform.OS === 'android' ? 'google' : undefined}
+      provider={'google'}
       initialRegion={initialRegion}
       customMapStyle={mapStyle}
     >
@@ -65,23 +57,6 @@ const MapView = ({ style, initialRegion = defaultRegion, markers = [] }: MapView
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  webPlaceholder: {
-    backgroundColor: colors.background.light,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  webText: {
-    fontSize: 18,
-    color: colors.text.primary,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  webSubText: {
-    fontSize: 14,
-    color: colors.text.secondary,
-    textAlign: 'center',
   },
 });
 

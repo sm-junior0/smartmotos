@@ -1,35 +1,55 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Image, SafeAreaView } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Image,
+  SafeAreaView,
+  Alert,
+} from 'react-native';
 import { router, useNavigation } from 'expo-router';
-import { Star, Phone, MessageSquare, Pause, Play, Menu, ChevronLeft, Search } from 'lucide-react-native';
+import {
+  Star,
+  Phone,
+  MessageSquare,
+  Pause,
+  Play,
+  Menu,
+  ChevronLeft,
+  Search,
+} from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
 import MapComponent from '@/components/Pcommon/MapComponent';
 import { useRide, DriverInfo, AvailableRide } from '@/hooks/useRideContext';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
+import { apiService } from '@/services/api';
+import { mockGoogleServices } from '@/services/mockGoogleServices';
 
 const DUMMY_DRIVER: DriverInfo = {
   id: '1',
   name: 'Kamana Emmanuel',
   rating: 4.5,
   plate: 'JDM PL8S',
-  avatar: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-05-02%20215507-YaoGHTbbSX0Yy08KjuYtLH34ltoiYQ.png',
-  location: { latitude: -1.9440, longitude: 30.0618 },
+  avatar:
+    'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-05-02%20215507-YaoGHTbbSX0Yy08KjuYtLH34ltoiYQ.png',
+  location: { latitude: -1.944, longitude: 30.0618 },
 };
 
 const DUMMY_AVAILABLE_RIDES: AvailableRide[] = [
-  { id: 'ride1', location: { latitude: -1.9400, longitude: 30.0650 } },
-  { id: 'ride2', location: { latitude: -1.9480, longitude: 30.0580 } },
-  { id: 'ride3', location: { latitude: -1.9550, longitude: 30.0700 } },
+  { id: 'ride1', location: { latitude: -1.94, longitude: 30.065 } },
+  { id: 'ride2', location: { latitude: -1.948, longitude: 30.058 } },
+  { id: 'ride3', location: { latitude: -1.955, longitude: 30.07 } },
 ];
 
 const DUMMY_TRIP_ROUTE = [
-  { latitude: -1.9440, longitude: 30.0618 },
-  { latitude: -1.9500, longitude: 30.0700 },
-  { latitude: -1.9550, longitude: 30.0800 },
-  { latitude: -1.9600, longitude: 30.0900 },
-  { latitude: -1.9650, longitude: 30.1000 },
+  { latitude: -1.944, longitude: 30.0618 },
+  { latitude: -1.95, longitude: 30.07 },
+  { latitude: -1.955, longitude: 30.08 },
+  { latitude: -1.96, longitude: 30.09 },
+  { latitude: -1.965, longitude: 30.1 },
 ];
 
 const DUMMY_TRIP_DETAILS = {
@@ -41,44 +61,120 @@ const DUMMY_TRIP_DETAILS = {
   total: '3000 Rwf',
 };
 
+// Helper function to validate coordinates
+const isValidCoordinate = (
+  coord: any
+): coord is { latitude: number; longitude: number } => {
+  return (
+    coord &&
+    typeof coord === 'object' &&
+    typeof coord.latitude === 'number' &&
+    typeof coord.longitude === 'number' &&
+    !isNaN(coord.latitude) &&
+    !isNaN(coord.longitude)
+  );
+};
+
 export default function MapScreen() {
-  const { rideState, setRideStatus, setCurrentDriver, setCurrentTrip, setAvailableRides } = useRide();
+  const {
+    rideState,
+    setRideStatus,
+    setCurrentDriver,
+    setCurrentTrip,
+    setAvailableRides,
+  } = useRide();
   const navigation = useNavigation();
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlayMessage, setOverlayMessage] = useState('');
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [nearbyDrivers, setNearbyDrivers] = useState<AvailableRide[]>([]);
+  const [routePolyline, setRoutePolyline] = useState<string | null>(null);
+  const [assignedDriver, setAssignedDriver] = useState<DriverInfo | null>(null);
+
+  const pickupCoords = useMemo(() => {
+    if (!rideState.bookingDetails.pickup?.coords) return null;
+    return {
+      latitude: rideState.bookingDetails.pickup.coords.lat,
+      longitude: rideState.bookingDetails.pickup.coords.lng,
+    };
+  }, [rideState.bookingDetails.pickup]);
+
+  const dropoffCoords = useMemo(() => {
+    if (!rideState.bookingDetails.dropoff?.coords) return null;
+    return {
+      latitude: rideState.bookingDetails.dropoff.coords.lat,
+      longitude: rideState.bookingDetails.dropoff.coords.lng,
+    };
+  }, [rideState.bookingDetails.dropoff]);
 
   useEffect(() => {
-    // Example: Fetch user location using Expo Location
-    // import * as Location from 'expo-location';
-    // (async () => {
-    //     let { status } = await Location.requestForegroundPermissionsAsync();
-    //     if (status !== 'granted') {
-    //         console.error('Permission to access location was denied');
-    //         return;
-    //     }
-    //     let location = await Location.getCurrentPositionAsync({});
-    //     setUserLocation(location.coords);
-    // })();
-    // For now, using a dummy location
-    setUserLocation({ latitude: -1.95, longitude: 30.06 });
-  }, []);
+    const fetchMapData = async () => {
+      if (!pickupCoords || !dropoffCoords) {
+        router.replace('/Ride/book');
+        return;
+      }
+
+      try {
+        // Fetch nearby drivers
+        const drivers = (await apiService.getNearbyDrivers(
+          pickupCoords
+        )) as any[];
+        setNearbyDrivers(
+          drivers.map((d) => ({
+            ...d,
+            location: { latitude: d.latitude, longitude: d.longitude },
+          }))
+        );
+
+        // Find and set the assigned driver details
+        if (rideState.bookingDetails.driverId) {
+          const assigned: any = await apiService.getDriverProfile(
+            rideState.bookingDetails.driverId.toString()
+          );
+          if (assigned) {
+            const driverLocation = drivers.find((d) => d.id === assigned.id);
+            const driverData: DriverInfo = {
+              id: assigned.id,
+              name: assigned.name || 'Unnamed Driver',
+              rating: assigned.rating || 0,
+              plate: assigned.vehicle_plate || 'No Plate',
+              avatar:
+                assigned.avatar_url || 'https://example.com/default-avatar.png', // A default placeholder
+              location: driverLocation
+                ? {
+                    latitude: driverLocation.lat,
+                    longitude: driverLocation.lng,
+                  }
+                : undefined, // Align with DriverInfo type
+            };
+            setAssignedDriver(driverData);
+            setCurrentDriver(driverData);
+          }
+        }
+
+        // Generate route polyline
+        const route = await mockGoogleServices.getRoute(
+          { lat: pickupCoords.latitude, lng: pickupCoords.longitude },
+          { lat: dropoffCoords.latitude, lng: dropoffCoords.longitude }
+        );
+        setRoutePolyline(route.polyline);
+      } catch (error) {
+        Alert.alert('Map Error', 'Could not load map data. Please try again.');
+        console.error('Error fetching map data:', error);
+        console.log(error);
+      }
+    };
+
+    fetchMapData();
+  }, [pickupCoords, dropoffCoords, rideState.bookingDetails.driverId]);
 
   useEffect(() => {
     if (rideState.status === 'booking_map') {
       setAvailableRides(DUMMY_AVAILABLE_RIDES);
       setRideStatus('searching');
-    }
-  }, [rideState.status]);
-
-  useEffect(() => {
-    if (rideState.status === 'searching') {
-      const acceptTimer = setTimeout(() => {
-        setCurrentDriver(DUMMY_DRIVER);
-        setCurrentTrip(DUMMY_TRIP_DETAILS);
-        setRideStatus('accepted');
-      }, 3000);
-      return () => clearTimeout(acceptTimer);
     }
   }, [rideState.status]);
 
@@ -159,7 +255,10 @@ export default function MapScreen() {
       case 'booking_map':
         return (
           <View style={styles.bottomPanel}>
-            <TouchableOpacity style={styles.hailRideButton} onPress={handleHailRide}>
+            <TouchableOpacity
+              style={styles.hailRideButton}
+              onPress={handleHailRide}
+            >
               <Text style={styles.hailRideText}>Hail ride</Text>
             </TouchableOpacity>
           </View>
@@ -169,7 +268,7 @@ export default function MapScreen() {
         return (
           <View style={styles.bottomPanel}>
             <Text style={styles.scanningText}>Scanning...</Text>
-            </View>
+          </View>
         );
 
       case 'accepted':
@@ -177,16 +276,29 @@ export default function MapScreen() {
           <View style={styles.bottomPanel}>
             {rideState.currentDriver && (
               <View style={styles.driverInfoCard}>
-                <Image source={{ uri: rideState.currentDriver.avatar }} style={styles.driverAvatar} />
+                <Image
+                  source={{ uri: rideState.currentDriver.avatar }}
+                  style={styles.driverAvatar}
+                />
                 <View style={styles.driverDetails}>
-                  <Text style={styles.driverName}>{rideState.currentDriver.name}</Text>
-                <View style={styles.ratingContainer}>
+                  <Text style={styles.driverName}>
+                    {rideState.currentDriver.name}
+                  </Text>
+                  <View style={styles.ratingContainer}>
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
                         size={16}
-                        color={i < Math.floor(rideState.currentDriver!.rating) ? Colors.primary.default : Colors.neutral.dark}
-                        fill={i < Math.floor(rideState.currentDriver!.rating) ? Colors.primary.default : 'none'}
+                        color={
+                          i < Math.floor(rideState.currentDriver!.rating)
+                            ? Colors.primary.default
+                            : Colors.neutral.dark
+                        }
+                        fill={
+                          i < Math.floor(rideState.currentDriver!.rating)
+                            ? Colors.primary.default
+                            : 'none'
+                        }
                       />
                     ))}
                   </View>
@@ -205,11 +317,24 @@ export default function MapScreen() {
             )}
             <TouchableOpacity style={styles.shareButton}>
               <Text style={styles.shareText}>Share ride details</Text>
-              <Search size={20} color={Colors.primary.default} style={styles.shareIcon} />
+              <Search
+                size={20}
+                color={Colors.primary.default}
+                style={styles.shareIcon}
+              />
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
-              <Button title="Cancel" onPress={handleRejectRide} style={[styles.actionButton, { flex: 1 }]} variant="outline" />
-              <Button title="Confirm" onPress={handleConfirmRide} style={[styles.actionButton, { flex: 1 }]} />
+              <Button
+                title="Cancel"
+                onPress={handleRejectRide}
+                style={[styles.actionButton, { flex: 1 }]}
+                variant="outline"
+              />
+              <Button
+                title="Confirm"
+                onPress={handleConfirmRide}
+                style={[styles.actionButton, { flex: 1 }]}
+              />
             </View>
           </View>
         );
@@ -220,65 +345,29 @@ export default function MapScreen() {
           <View style={styles.bottomPanel}>
             {rideState.currentDriver && (
               <View style={styles.driverInfoCard}>
-                <Image source={{ uri: rideState.currentDriver.avatar }} style={styles.driverAvatar} />
+                <Image
+                  source={{ uri: rideState.currentDriver.avatar }}
+                  style={styles.driverAvatar}
+                />
                 <View style={styles.driverDetails}>
-                  <Text style={styles.driverName}>{rideState.currentDriver.name}</Text>
+                  <Text style={styles.driverName}>
+                    {rideState.currentDriver.name}
+                  </Text>
                   <View style={styles.ratingContainer}>
                     {[...Array(5)].map((_, i) => (
                       <Star
                         key={i}
                         size={16}
-                        color={i < Math.floor(rideState.currentDriver!.rating) ? Colors.primary.default : Colors.neutral.dark}
-                        fill={i < Math.floor(rideState.currentDriver!.rating) ? Colors.primary.default : 'none'}
-                      />
-                    ))}
-              </View>
-                  <Text style={styles.driverLocation}>KG 18 Ave</Text>
-                  <Text style={styles.driverTime}>8:00 AM</Text>
-            </View>
-                <View style={styles.communicationButtons}>
-                  <TouchableOpacity style={styles.communicationButton}>
-                    <MessageSquare size={24} color={Colors.primary.default} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.communicationButton}>
-                    <Phone size={24} color={Colors.primary.default} />
-              </TouchableOpacity>
-              </View>
-              </View>
-            )}
-            {rideState.status === 'paused' ? (
-              <View style={styles.pausedActions}>
-                <Text style={styles.pausedText}>Your trip has been put on hold</Text>
-                <Button title="Resume" onPress={handleResumeRide} style={styles.actionButton} />
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.shareButton}>
-                <Text style={styles.shareText}>Share ride details</Text>
-                <Search size={20} color={Colors.primary.default} style={styles.shareIcon} />
-              </TouchableOpacity>
-            )}
-
-            {rideState.status !== 'paused' && (
-              <Button title="Pause" onPress={handlePauseRide} style={styles.actionButton} variant="outline" />
-            )}
-          </View>
-        );
-
-      case 'arrived':
-        return (
-          <View style={styles.bottomPanel}>
-            {rideState.currentDriver && (
-              <View style={styles.driverInfoCard}>
-                <Image source={{ uri: rideState.currentDriver.avatar }} style={styles.driverAvatar} />
-                <View style={styles.driverDetails}>
-                  <Text style={styles.driverName}>{rideState.currentDriver.name}</Text>
-                  <View style={styles.ratingContainer}>
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={16}
-                        color={i < Math.floor(rideState.currentDriver!.rating) ? Colors.primary.default : Colors.neutral.dark}
-                        fill={i < Math.floor(rideState.currentDriver!.rating) ? Colors.primary.default : 'none'}
+                        color={
+                          i < Math.floor(rideState.currentDriver!.rating)
+                            ? Colors.primary.default
+                            : Colors.neutral.dark
+                        }
+                        fill={
+                          i < Math.floor(rideState.currentDriver!.rating)
+                            ? Colors.primary.default
+                            : 'none'
+                        }
                       />
                     ))}
                   </View>
@@ -291,15 +380,100 @@ export default function MapScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.communicationButton}>
                     <Phone size={24} color={Colors.primary.default} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            {rideState.status === 'paused' ? (
+              <View style={styles.pausedActions}>
+                <Text style={styles.pausedText}>
+                  Your trip has been put on hold
+                </Text>
+                <Button
+                  title="Resume"
+                  onPress={handleResumeRide}
+                  style={styles.actionButton}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.shareButton}>
+                <Text style={styles.shareText}>Share ride details</Text>
+                <Search
+                  size={20}
+                  color={Colors.primary.default}
+                  style={styles.shareIcon}
+                />
               </TouchableOpacity>
-            </View>
+            )}
+
+            {rideState.status !== 'paused' && (
+              <Button
+                title="Pause"
+                onPress={handlePauseRide}
+                style={styles.actionButton}
+                variant="outline"
+              />
+            )}
+          </View>
+        );
+
+      case 'arrived':
+        return (
+          <View style={styles.bottomPanel}>
+            {rideState.currentDriver && (
+              <View style={styles.driverInfoCard}>
+                <Image
+                  source={{ uri: rideState.currentDriver.avatar }}
+                  style={styles.driverAvatar}
+                />
+                <View style={styles.driverDetails}>
+                  <Text style={styles.driverName}>
+                    {rideState.currentDriver.name}
+                  </Text>
+                  <View style={styles.ratingContainer}>
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        size={16}
+                        color={
+                          i < Math.floor(rideState.currentDriver!.rating)
+                            ? Colors.primary.default
+                            : Colors.neutral.dark
+                        }
+                        fill={
+                          i < Math.floor(rideState.currentDriver!.rating)
+                            ? Colors.primary.default
+                            : 'none'
+                        }
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.driverLocation}>KG 18 Ave</Text>
+                  <Text style={styles.driverTime}>8:00 AM</Text>
+                </View>
+                <View style={styles.communicationButtons}>
+                  <TouchableOpacity style={styles.communicationButton}>
+                    <MessageSquare size={24} color={Colors.primary.default} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.communicationButton}>
+                    <Phone size={24} color={Colors.primary.default} />
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
             <TouchableOpacity style={styles.shareButton}>
               <Text style={styles.shareText}>Share ride details</Text>
-              <Search size={20} color={Colors.primary.default} style={styles.shareIcon} />
+              <Search
+                size={20}
+                color={Colors.primary.default}
+                style={styles.shareIcon}
+              />
             </TouchableOpacity>
-            <Button title="Confirm" onPress={handleArrivedConfirm} style={styles.actionButton} />
+            <Button
+              title="Confirm"
+              onPress={handleArrivedConfirm}
+              style={styles.actionButton}
+            />
           </View>
         );
 
@@ -311,42 +485,70 @@ export default function MapScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <MapComponent
-        routeCoordinates={rideState.status === 'enroute' || rideState.status === 'paused' || rideState.status === 'arrived' ? DUMMY_TRIP_ROUTE : []}
-        availableRideLocations={(rideState.status === 'booking_map' || rideState.status === 'searching') && rideState.availableRides ? rideState.availableRides.map((ride: AvailableRide) => ride.location) : []}
-        currentLocation={userLocation}
+        userLocation={pickupCoords}
+        destination={dropoffCoords}
+        nearbyDrivers={nearbyDrivers.filter((driver) =>
+          isValidCoordinate(driver.location)
+        )}
+        assignedDriver={assignedDriver}
+        routePolyline={routePolyline}
       />
 
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
           <ChevronLeft size={24} color={Colors.neutral.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {rideState.status === 'booking_form' || rideState.status === 'booking_map' || rideState.status === 'searching' ? 'BOOK SEAT' : 'BOOK TRIP'}
+          {rideState.status === 'booking_form' ||
+          rideState.status === 'booking_map' ||
+          rideState.status === 'searching'
+            ? 'BOOK SEAT'
+            : 'BOOK TRIP'}
         </Text>
-        {(rideState.status === 'booking_map' || rideState.status === 'searching') && (
+        {(rideState.status === 'booking_map' ||
+          rideState.status === 'searching') && (
           <TouchableOpacity style={styles.searchButton}>
             <Search size={24} color={Colors.neutral.white} />
           </TouchableOpacity>
         )}
-        {(rideState.status === 'accepted' || rideState.status === 'enroute' || rideState.status === 'paused' || rideState.status === 'arrived') && rideState.currentDriver && (
-          <TouchableOpacity style={styles.driverAvatarSmallContainer}>
-            <Image source={{ uri: rideState.currentDriver.avatar }} style={styles.driverAvatarSmall} />
-          </TouchableOpacity>
-        )}
+        {(rideState.status === 'accepted' ||
+          rideState.status === 'enroute' ||
+          rideState.status === 'paused' ||
+          rideState.status === 'arrived') &&
+          rideState.currentDriver && (
+            <TouchableOpacity style={styles.driverAvatarSmallContainer}>
+              <Image
+                source={{ uri: rideState.currentDriver.avatar }}
+                style={styles.driverAvatarSmall}
+              />
+            </TouchableOpacity>
+          )}
       </View>
 
-      {(rideState.status === 'enroute' || rideState.status === 'paused' || rideState.status === 'arrived') && rideState.currentTrip && (
-        <View style={styles.timeDistanceContainer}>
-          <View style={styles.timeDistanceBox}>
-            <Text style={styles.timeDistanceText}>{rideState.currentTrip.time}</Text>
-            <Text style={styles.timeDistanceLabel}>min</Text>
+      {(rideState.status === 'enroute' ||
+        rideState.status === 'paused' ||
+        rideState.status === 'arrived') &&
+        rideState.currentTrip && (
+          <View style={styles.timeDistanceContainer}>
+            <View style={styles.timeDistanceBox}>
+              <Text style={styles.timeDistanceText}>
+                {rideState.currentTrip.time}
+              </Text>
+              <Text style={styles.timeDistanceLabel}>min</Text>
+            </View>
+            <View style={styles.timeDistanceBox}>
+              <Text style={styles.timeDistanceText}>
+                {rideState.currentTrip.distance.split(' ')[0]}
+              </Text>
+              <Text style={styles.timeDistanceLabel}>
+                {rideState.currentTrip.distance.split(' ')[1]}
+              </Text>
+            </View>
           </View>
-          <View style={styles.timeDistanceBox}>
-            <Text style={styles.timeDistanceText}>{rideState.currentTrip.distance.split(' ')[0]}</Text>
-            <Text style={styles.timeDistanceLabel}>{rideState.currentTrip.distance.split(' ')[1]}</Text>
-      </View>
-    </View>
-      )}
+        )}
 
       {renderOverlay()}
       {renderBottomContent()}

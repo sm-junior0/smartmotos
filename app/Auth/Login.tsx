@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/Colors';
@@ -6,9 +6,7 @@ import Layout from '@/constants/Layout';
 import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import SocialAuthButtons from '@/components/UI/SocialAuthButtons';
-import { login } from '@/services/auth';
-import { jwtDecode } from 'jwt-decode';
-import AuthContext from './context';
+import { useAuth } from '@/hooks/AuthContext';
 
 const styles = StyleSheet.create({
   container: {
@@ -56,7 +54,7 @@ const styles = StyleSheet.create({
 });
 
 export default function Login() {
-  const authContext = useContext(AuthContext);
+  const { signIn } = useAuth();
   const [phone, setPhone] = useState('+250');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({
@@ -106,17 +104,18 @@ export default function Login() {
   const handleLogin = async () => {
     if (!validateForm()) return;
     setLoading(true);
-    const result = await login(phone, password);
-    if (result.success && result.data) {
-      setLoading(false);
-      const user = jwtDecode(result.data.token);
-      authContext.setUser(user);
+
+    const result = await signIn(phone, password);
+    setLoading(false);
+
+    if (result.success) {
       router.push('/(tabs)');
     } else {
-      setLoading(false);
-      Alert.alert('Login failed', result.error, [
-        { text: 'OK', onPress: () => router.replace('/Auth/Login') },
-      ]);
+      Alert.alert(
+        'Login failed',
+        result.error || 'An error occurred during login',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -174,7 +173,9 @@ export default function Login() {
           style={styles.loginButton}
         />
 
-        <TouchableOpacity onPress={() => router.push('/Account/Password/forgot')}>
+        <TouchableOpacity
+          onPress={() => router.push('/Account/Password/forgot')}
+        >
           <Text style={styles.forgotPassword}>Forgot Password?</Text>
         </TouchableOpacity>
 

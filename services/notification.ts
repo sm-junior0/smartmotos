@@ -8,6 +8,8 @@ interface WebSocketMessage {
   notification?: Notification;
 }
 
+type Listener = (data: any) => void;
+
 class NotificationService {
   private static instance: NotificationService;
   private ws: WebSocket | null = null;
@@ -16,8 +18,26 @@ class NotificationService {
   private reconnectTimeout = 5000; // 5 seconds
   private userId: string | null = null;
   private userType: string | null = null;
+  private listeners: { [event: string]: Listener[] } = {};
 
   private constructor() {}
+
+  public on(event: string, listener: Listener) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(listener);
+  }
+
+  public off(event: string, listener: Listener) {
+    if (!this.listeners[event]) return;
+    this.listeners[event] = this.listeners[event].filter(l => l !== listener);
+  }
+
+  private emit(event: string, data: any) {
+    if (!this.listeners[event]) return;
+    this.listeners[event].forEach(listener => listener(data));
+  }
 
   public initialize() {
     if (typeof window !== 'undefined') {
@@ -45,7 +65,7 @@ class NotificationService {
 
   private setupWebSocket() {
     if (!this.userId || !this.userType) {
-      console.log('User context not set. Skipping WebSocket connection.');
+      // console.log('User context not set. Skipping WebSocket connection.');
       return;
     }
 
@@ -59,11 +79,11 @@ class NotificationService {
       // Add connection parameters to URL instead of sending them after connection
       const wsUrl = `${WS_URL}?user_id=${this.userId}&user_type=${this.userType}`;
       
-      console.log('Attempting WebSocket connection to:', wsUrl);
+      // console.log('Attempting WebSocket connection to:', wsUrl);
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('WebSocket connection established');
+        // console.log('WebSocket connection established');
         this.reconnectAttempts = 0;
       };
 
@@ -77,7 +97,7 @@ class NotificationService {
       };
 
       this.ws.onerror = (error: Event) => {
-        console.error('WebSocket error:', error);
+         console.error('WebSocket error:', error);
         // Don't attempt to reconnect on auth errors
         if ((error as any)?.code === 1008) {
           console.error('Authentication failed, not attempting reconnection');
@@ -87,10 +107,10 @@ class NotificationService {
       };
 
       this.ws.onclose = (event) => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
+         console.log('WebSocket connection closed:', event.code, event.reason);
         // Don't attempt to reconnect on auth errors
         if (event.code === 1008) {
-          console.error('Authentication failed, not attempting reconnection');
+          // console.error('Authentication failed, not attempting reconnection');
           return;
         }
         this.handleReconnection();
@@ -104,10 +124,10 @@ class NotificationService {
   private handleReconnection() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
-      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+       console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
       setTimeout(() => this.setupWebSocket(), this.reconnectTimeout);
     } else {
-      console.log('Max reconnection attempts reached');
+       console.log('Max reconnection attempts reached');
     }
   }
 
@@ -126,32 +146,28 @@ class NotificationService {
         this.handleNewNotification(message.notification!);
         break;
       default:
-        console.log('Unknown message type:', message.type);
+         console.log('Unknown message type:', message.type);
     }
   }
 
   private handleNewBooking(data: any) {
     if (this.userType === 'driver') {
-      const event = new CustomEvent('new_booking', { detail: data });
-      window.dispatchEvent(event);
+      this.emit('new_booking', data);
     }
   }
 
   private handleBookingUpdate(data: any) {
-    const event = new CustomEvent('booking_update', { detail: data });
-    window.dispatchEvent(event);
+    this.emit('booking_update', data);
   }
 
   private handleDriverLocation(data: any) {
     if (this.userType === 'passenger') {
-      const event = new CustomEvent('driver_location', { detail: data });
-      window.dispatchEvent(event);
+      this.emit('driver_location', data);
     }
   }
 
   private handleNewNotification(notification: Notification) {
-    const event = new CustomEvent('new_notification', { detail: notification });
-    window.dispatchEvent(event);
+    this.emit('new_notification', notification);
   }
 
   public sendMessage(type: string, data: any) {

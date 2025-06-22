@@ -1,8 +1,8 @@
 // API Configuration
-export const API_URL = 'http://10.11.75.249:5000/api/';
+export const API_URL = 'http://10.11.75.249:5000/api';
 
 // WebSocket Configuration
-export const WS_URL = 'ws://10.11.75.249:5000/ws';
+export const WS_URL = 'ws://10.11.75.249:5001';
 
 // Google Maps Configuration
 export const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
@@ -41,23 +41,35 @@ export const ENDPOINTS = {
   // Bookings
   CREATE_BOOKING: '/bookings/create',
   GET_BOOKINGS: '/bookings',
-  UPDATE_BOOKING: '/bookings/update',
+  GET_BOOKING_DETAILS: '/bookings/:id',
+  CANCEL_BOOKING: '/bookings/cancel',
+  ACCEPT_RIDE: '/rides/accept',
+  START_RIDE: '/rides/start',
+  COMPLETE_RIDE: '/rides/complete',
 
   // Payments
-  PROCESS_PAYMENT: '/process-payment',
-  DRIVER_EARNINGS: '/driver/earnings',
-  REQUEST_WITHDRAWAL: '/driver/withdraw',
+  PROCESS_PAYMENT: '/payment/process',
+  GET_PAYMENT_HISTORY: '/payment/history',
 
   // Notifications
   GET_NOTIFICATIONS: '/notifications',
-  MARK_NOTIFICATION_READ: '/notifications/mark-read',
-  MARK_ALL_NOTIFICATIONS_READ: '/notifications/mark-all-read',
   SEND_NOTIFICATION: '/notifications/send',
-  WEATHER_ALERT: '/notifications/weather-alert',
 
   // Demand
   UPDATE_DEMAND: '/demand/update',
   GET_DEMAND_ZONES: '/demand/zones',
   GET_NEARBY_DRIVERS: '/demand/nearby-drivers',
-  UPDATE_DRIVER_LOCATION: '/driver/location/update',
+  UPDATE_DRIVER_LOCATION: '/driver/update-location',
+  UPDATE_DRIVER_STATUS: '/driver/status',
+
+  // Driver Earnings
+  DRIVER_EARNINGS: '/driver/earnings',
+  REQUEST_WITHDRAWAL: '/driver/withdraw',
+
+  // Weather Alert
+  WEATHER_ALERT: '/notifications/weather-alert',
+
+  // Mark Notifications
+  MARK_NOTIFICATION_READ: '/notifications/mark-read',
+  MARK_ALL_NOTIFICATIONS_READ: '/notifications/mark-all-read',
 } as const; 

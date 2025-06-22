@@ -13,7 +13,7 @@ import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
 import { notificationService } from '@/services/notification';
 import { bookingService } from '@/services/bookingService';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/AuthContext';
 import { MapPin, Clock } from 'lucide-react-native';
 
 interface BookingNotification {
@@ -35,16 +35,31 @@ export default function DriverNotification() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.addEventListener('new_booking', ((event: CustomEvent) => {
-        const booking = event.detail;
-        handleNewBooking(booking);
-      }) as EventListener);
-    }
-  }, []);
+    const newBookingListener = (booking: BookingNotification) => {
+      handleNewBooking(booking);
+    };
+
+    const bookingUnavailableListener = (data: { booking_id: string }) => {
+      if (activeBooking && data.booking_id === activeBooking.id) {
+        // Another driver accepted this booking, so close the notification
+        setActiveBooking(null);
+      }
+    };
+
+    notificationService.on('new_booking', newBookingListener);
+    notificationService.on('booking_unavailable', bookingUnavailableListener);
+
+    return () => {
+      notificationService.off('new_booking', newBookingListener);
+      notificationService.off(
+        'booking_unavailable',
+        bookingUnavailableListener
+      );
+    };
+  }, [activeBooking]);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: NodeJS.Timeout | number;
     if (activeBooking && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
@@ -76,7 +91,7 @@ export default function DriverNotification() {
         'accepted',
         'Your ride has been accepted by the driver.'
       );
-      router.push('/(driver)/ride');
+      router.push('/driver/rides/in-progress');
     } catch (error) {
       console.error('Error accepting booking:', error);
     } finally {

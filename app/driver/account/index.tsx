@@ -10,6 +10,9 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Switch,
+  Alert,
+  RefreshControl,
 } from 'react-native';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
 import {
@@ -29,6 +32,10 @@ import { useRouter } from 'expo-router';
 import { getDriverProfile } from '@/services/profile';
 import type { DriverProfile } from '@/services/profile';
 import * as SecureStore from 'expo-secure-store';
+import { updateDriverStatus } from '@/services/driver';
+import { apiService } from '../../../services/api';
+import * as Location from 'expo-location';
+import { useAuth } from '../../../hooks/AuthContext';
 
 type MenuItemProps = {
   icon: React.ReactNode;
@@ -41,27 +48,74 @@ export default function App() {
   const router = useRouter();
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { user: driver } = useAuth();
 
   const isDrawOpen = useDrawerStatus() === 'open';
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
   const fetchProfile = async () => {
+    if (!driver) return;
     try {
-      const result = await getDriverProfile();
-      if (result.success && result.data) {
-        setProfile(result.data);
-      } else {
-        setError(result.error || 'Failed to load profile');
-      }
-    } catch (err) {
-      setError('An error occurred while loading profile');
+      // For now, we'll just ensure the status is initialized.
+      // A full profile fetch would happen here.
+      setProfile(
+        (prev) =>
+          ({
+            ...prev,
+            name: driver.name,
+            email: driver.email,
+            phone: driver.phone,
+            status: prev?.status || 'unavailable',
+          } as DriverProfile)
+      );
+    } catch (e) {
+      Alert.alert('Error', 'Could not fetch profile.');
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, [driver]);
+
+  const handleAvailabilityChange = async (value: boolean) => {
+    if (!driver || isUpdating) return;
+
+    setIsUpdating(true);
+    const newStatus = value ? 'available' : 'unavailable';
+
+    try {
+      if (value) {
+        // TODO: Replace with real location once Google Maps API is integrated
+        const passengerPickupLocation = { lat: -1.9397, lng: 30.0557 }; // Nyabugogo
+        const driverSimulatedLocation = {
+          latitude: passengerPickupLocation.lat + 0.01,
+          longitude: passengerPickupLocation.lng,
+        };
+        await apiService.updateDriverLocation(
+          driver.id,
+          driverSimulatedLocation
+        );
+      }
+
+      await apiService.updateDriverStatus(driver.id, newStatus);
+
+      // Update local state to reflect the change immediately
+      setProfile((prev) => (prev ? { ...prev, status: newStatus } : null));
+      Alert.alert('Status Updated', `You are now ${newStatus}.`);
+    } catch (error) {
+      console.log(error);
+      Alert.alert('Error', 'Could not update your status. Please try again.');
+      // No state reversal here, we let the UI be driven by fetched state on refresh
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setLoading(true);
+    fetchProfile();
   };
 
   const handleSignout = async () => {
@@ -78,17 +132,6 @@ export default function App() {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color="#FFD700" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchProfile}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -123,15 +166,25 @@ export default function App() {
         </View>
 
         {/* Status badge */}
-        <View style={styles.dedicatedContainer}>
-          <Text style={styles.dedicatedText}>
-            {profile?.status || 'Offline'}
-          </Text>
+        <View style={styles.availabilityContainer}>
+          <Text style={styles.availabilityText}>Available for Rides</Text>
+          <Switch
+            value={profile?.status === 'available'}
+            onValueChange={handleAvailabilityChange}
+            disabled={isUpdating}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={profile?.status === 'available' ? '#f5dd4b' : '#f4f3f4'}
+          />
         </View>
       </View>
 
       {/* Scrollable Content */}
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={onRefresh} />
+        }
+      >
         {/* Profile section */}
         <View style={styles.profileSection}>
           <View style={styles.profileImageContainer}>
@@ -279,7 +332,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  dedicatedContainer: {
+  availabilityContainer: {
     backgroundColor: '#000',
     alignSelf: 'flex-start',
     paddingVertical: 8,
@@ -288,7 +341,7 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginTop: 10,
   },
-  dedicatedText: {
+  availabilityText: {
     color: 'white',
     fontFamily: typography.fontFamily.medium,
   },

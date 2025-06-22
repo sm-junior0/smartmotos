@@ -60,13 +60,6 @@ class BookingService {
     };
   }
 
-  private dispatchBookingEvent(booking: any) {
-    if (typeof window !== 'undefined') {
-      const event = new CustomEvent('new_booking', { detail: booking });
-      window.dispatchEvent(event);
-    }
-  }
-
   async createBooking(booking: BookingRequest): Promise<BookingResponse> {
     try {
       const response = await fetch(`${API_URL}/bookings`, {
@@ -91,18 +84,6 @@ class BookingService {
           'new_booking',
           'You have a new ride request'
         );
-
-        // Dispatch booking event for driver app
-        this.dispatchBookingEvent({
-          id: data.booking_id,
-          passengerId: data.passenger_id,
-          passengerName: data.passenger_name,
-          passengerAvatar: data.passenger_avatar,
-          pickup: booking.pickup_location,
-          dropoff: booking.dropoff_location,
-          fare: data.fare,
-          pickupTime: booking.pickup_time,
-        });
       }
 
       return data;

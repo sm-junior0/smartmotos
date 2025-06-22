@@ -1,69 +1,66 @@
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { MapPin, Navigation } from 'lucide-react-native';
+import { Car, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
+import { AvailableRide, DriverInfo } from '@/hooks/useRideContext';
 
 interface MapComponentProps {
   userLocation: { latitude: number; longitude: number } | null;
-  pickupLocation?: string;
-  dropoffLocation?: string;
-  polyline?: string;
-  driverLocation?: { latitude: number; longitude: number };
+  destination: { latitude: number; longitude: number } | null;
+  nearbyDrivers?: AvailableRide[];
+  assignedDriver?: DriverInfo | null;
+  routePolyline?: string | null;
 }
 
 export default function MapComponent({
   userLocation,
-  pickupLocation,
-  dropoffLocation,
-  polyline,
-  driverLocation,
+  destination,
+  nearbyDrivers = [],
+  assignedDriver,
+  routePolyline,
 }: MapComponentProps) {
   const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
-    if (mapRef.current && userLocation) {
+    if (mapRef.current && userLocation && destination) {
+      const coordinates = [userLocation, destination];
+      if (assignedDriver?.location) {
+        coordinates.push(assignedDriver.location);
+      }
+
+      mapRef.current.fitToCoordinates(coordinates, {
+        edgePadding: { top: 100, right: 50, bottom: 350, left: 50 },
+        animated: true,
+      });
+    } else if (mapRef.current && userLocation) {
       mapRef.current.animateToRegion({
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
+        ...userLocation,
         latitudeDelta: 0.02,
         longitudeDelta: 0.02,
       });
     }
-  }, [userLocation]);
+  }, [userLocation, destination, assignedDriver]);
 
-  useEffect(() => {
-    if (mapRef.current && polyline) {
-      // Convert polyline string to coordinates
-      const points = polyline.split('|').map((point) => {
+  const decodePolyline = (polyline: string) => {
+    // This is a placeholder. A real app would use a library like @mapbox/polyline
+    // to decode the polyline string from Google Directions API.
+    // For now, assuming a simple format for the mock service.
+    if (!polyline) return [];
+    try {
+      return polyline.split('|').map((point) => {
         const [lat, lng] = point.split(',').map(Number);
         return { latitude: lat, longitude: lng };
       });
-
-      // Fit map to show all points
-      mapRef.current.fitToCoordinates(points, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
-        animated: true,
-      });
+    } catch (e) {
+      console.error('Error decoding polyline:', e);
+      return [];
     }
-  }, [polyline]);
-
-  const renderPolyline = () => {
-    if (!polyline) return null;
-
-    const points = polyline.split('|').map((point) => {
-      const [lat, lng] = point.split(',').map(Number);
-      return { latitude: lat, longitude: lng };
-    });
-
-    return (
-      <Polyline
-        coordinates={points}
-        strokeColor={Colors.primary.default}
-        strokeWidth={3}
-      />
-    );
   };
+
+  const polylineCoordinates = routePolyline
+    ? decodePolyline(routePolyline)
+    : [];
 
   return (
     <View style={styles.container}>
@@ -71,30 +68,63 @@ export default function MapComponent({
         ref={mapRef}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
-        initialRegion={{
-          latitude: -1.9534,
-          longitude: 30.0944,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
-        }}
+        initialRegion={
+          userLocation
+            ? { ...userLocation, latitudeDelta: 0.09, longitudeDelta: 0.04 }
+            : undefined
+        }
       >
+        {/* User's Location Marker */}
         {userLocation && (
-          <Marker coordinate={userLocation}>
+          <Marker coordinate={userLocation} title="Your Location">
             <View style={styles.userMarker}>
               <MapPin size={24} color={Colors.primary.default} />
             </View>
           </Marker>
         )}
 
-        {driverLocation && (
-          <Marker coordinate={driverLocation}>
-            <View style={styles.driverMarker}>
-              <Navigation size={24} color={Colors.primary.default} />
+        {/* Destination Marker */}
+        {destination && (
+          <Marker coordinate={destination} title="Destination">
+            <View style={styles.destinationMarker}>
+              <MapPin size={24} color={Colors.secondary.default} />
             </View>
           </Marker>
         )}
 
-        {renderPolyline()}
+        {/* Nearby Drivers Markers */}
+        {nearbyDrivers
+          .filter(
+            (driver) =>
+              driver.location &&
+              typeof driver.location.latitude === 'number' &&
+              typeof driver.location.longitude === 'number'
+          )
+          .map((driver) => (
+            <Marker key={driver.id} coordinate={driver.location}>
+              <View style={styles.driverMarker}>
+                <Car size={22} color={Colors.neutral.white} />
+              </View>
+            </Marker>
+          ))}
+
+        {/* Assigned Driver Marker (highlighted) */}
+        {assignedDriver?.location && (
+          <Marker coordinate={assignedDriver.location} title="Your Driver">
+            <View style={styles.assignedDriverMarker}>
+              <Car size={24} color={Colors.neutral.white} />
+            </View>
+          </Marker>
+        )}
+
+        {/* Route Polyline */}
+        {polylineCoordinates.length > 0 && (
+          <Polyline
+            coordinates={polylineCoordinates}
+            strokeColor={Colors.primary.default}
+            strokeWidth={4}
+          />
+        )}
       </MapView>
     </View>
   );
@@ -108,17 +138,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userMarker: {
-    padding: 8,
     backgroundColor: Colors.neutral.white,
-    borderRadius: 20,
-    borderWidth: 2,
+    padding: 8,
+    borderRadius: 24,
     borderColor: Colors.primary.default,
+    borderWidth: 3,
+  },
+  destinationMarker: {
+    backgroundColor: Colors.neutral.white,
+    padding: 8,
+    borderRadius: 24,
+    borderColor: Colors.secondary.default,
+    borderWidth: 3,
   },
   driverMarker: {
+    backgroundColor: Colors.neutral.dark,
+    padding: 6,
+    borderRadius: 18,
+  },
+  assignedDriverMarker: {
+    backgroundColor: Colors.primary.default,
     padding: 8,
-    backgroundColor: Colors.neutral.white,
-    borderRadius: 20,
+    borderRadius: 24,
+    borderColor: Colors.neutral.white,
     borderWidth: 2,
-    borderColor: Colors.primary.default,
   },
 });

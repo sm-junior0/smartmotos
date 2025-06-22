@@ -21,6 +21,13 @@ export interface Driver extends User {
   rating: number;
   earnings: number;
   completedRides: number;
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  vehicle_plate: string;
+  avatar_url: string;
+  phone?: string;
 }
 
 export interface Vehicle {
@@ -44,6 +51,7 @@ export interface Ride {
   duration: number;
   createdAt: Date;
   completedAt?: Date;
+  polyline: string;
 }
 
 export interface Payment {
