@@ -1,96 +1,248 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  Alert,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+} from 'react-native';
 import { router } from 'expo-router';
-import { CreditCard, Wallet, Check, ChevronLeft } from 'lucide-react-native';
-import Colors from '@/constants/Colors';
-import Layout from '@/constants/Layout';
-import Button from '@/components/UI/Button';
-import { useRide } from '@/hooks/useRideContext';
+import { useRide } from '../../hooks/useRideContext';
+import { useAuth } from '../../hooks/AuthContext';
+import { Ride } from '../../types';
+import { API_URL } from '../../config';
+import { getAuthToken } from '../../services/auth';
+import Button from '../../components/common/Button';
 
 const PAYMENT_METHODS = [
-  {
-    id: 'wallet',
-    name: 'Wallet',
-    icon: Wallet,
-    balance: '24,000 Rwf',
-  },
-  {
-    id: 'card',
-    name: 'Credit Card',
-    icon: CreditCard,
-    last4: '4242',
-  },
+  { id: 'cash', label: 'Cash', icon: '💵' },
+  { id: 'mobile_money', label: 'Mobile Money', icon: '📱' },
+  { id: 'card', label: 'Card', icon: '💳' },
 ];
 
 export default function PaymentScreen() {
-  const { rideState, setRideStatus } = useRide();
-  const { currentTrip } = rideState;
+  const { rideState } = useRide();
+  const { user } = useAuth();
+  const [currentRide, setCurrentRide] = useState<Ride | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<string>('');
+  const [loading, setLoading] = useState(false);
 
-  const [selectedMethod, setSelectedMethod] = useState('wallet');
+  useEffect(() => {
+    if (rideState.bookingDetails.bookingId) {
+      fetchRideDetails(rideState.bookingDetails.bookingId);
+    }
+  }, []);
 
-  const handlePayNow = () => {
-    setRideStatus('completed');
-    router.replace('/Ride/rating');
+  const fetchRideDetails = async (bookingId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/bookings/${bookingId}`, {
+        headers: {
+          Authorization: `Bearer ${await getAuthToken()}`,
+        },
+      });
+
+      if (response.ok) {
+        const bookingData = await response.json();
+        console.log('[Payment] Booking details:', bookingData);
+
+        const ride: Ride = {
+          id: bookingData.id,
+          riderId: user?.id || '',
+          driverId: bookingData.driver_id,
+          pickup: {
+            latitude: JSON.parse(bookingData.pickup_location).lat,
+            longitude: JSON.parse(bookingData.pickup_location).lng,
+            address: rideState.bookingDetails.pickup?.description || '',
+          },
+          destination: {
+            latitude: JSON.parse(bookingData.dropoff_location).lat,
+            longitude: JSON.parse(bookingData.dropoff_location).lng,
+            address: rideState.bookingDetails.dropoff?.description || '',
+          },
+          status: bookingData.status,
+          fare: bookingData.fare,
+          distance: rideState.bookingDetails.distance || 0,
+          duration: rideState.bookingDetails.duration || 0,
+          createdAt: new Date(bookingData.booking_time),
+        };
+
+        setCurrentRide(ride);
+        setSelectedPaymentMethod(bookingData.payment_method || '');
+      }
+    } catch (error) {
+      console.error('[Payment] Error fetching ride details:', error);
+    }
   };
 
-  const tripFare = (parseInt(currentTrip?.baseFare?.replace(' Rwf', '') || '0') + parseInt(currentTrip?.distanceFare?.replace(' Rwf', '') || '0')).toString() + ' Rwf';
+  const handlePayment = async () => {
+    if (!selectedPaymentMethod) {
+      Alert.alert('Error', 'Please select a payment method');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `${API_URL}/bookings/${currentRide?.id}/pay`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await getAuthToken()}`,
+          },
+          body: JSON.stringify({
+            payment_method: selectedPaymentMethod,
+            amount: currentRide?.fare,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const paymentData = await response.json();
+        console.log('[Payment] Payment successful:', paymentData);
+
+        Alert.alert(
+          'Payment Successful',
+          'Your payment has been processed successfully!',
+          [
+            {
+              text: 'Rate Driver',
+              onPress: () => router.push('/Ride/rating'),
+            },
+            {
+              text: 'Done',
+              onPress: () => router.push('/(tabs)'),
+            },
+          ]
+        );
+      } else {
+        const errorData = await response.json();
+        Alert.alert(
+          'Payment Failed',
+          errorData.error || 'Payment processing failed'
+        );
+      }
+    } catch (error) {
+      console.error('[Payment] Error processing payment:', error);
+      Alert.alert('Error', 'Payment processing failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!currentRide) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.loadingText}>Loading payment details...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <ChevronLeft size={24} color={Colors.neutral.white} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>INVOICE</Text>
-        <View style={{ width: 24 }} />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Payment</Text>
+        <Text style={styles.subtitle}>Complete your ride payment</Text>
       </View>
 
-      <ScrollView style={styles.scrollView}>
-        {currentTrip ? (
-          <View style={styles.invoiceCard}>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceLabel}>Pickup point</Text>
-              <Text style={styles.invoiceValue}>{rideState.bookingDetails.pickup}</Text>
-            </View>
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceLabel}>Drop point</Text>
-              <Text style={styles.invoiceValue}>{rideState.bookingDetails.dropoff}</Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.invoiceRow}>
-              <Text style={styles.invoiceLabel}>Trip fare</Text>
-              <Text style={styles.invoiceValue}>{tripFare}</Text>
-            </View>
-            {currentTrip.waitingFee && parseInt(currentTrip.waitingFee.replace(' Rwf', '')) > 0 && (
-              <View style={styles.invoiceRow}>
-                <Text style={styles.invoiceLabel}>Waiting fee</Text>
-                <Text style={styles.invoiceValue}>{currentTrip.waitingFee}</Text>
-              </View>
-            )}
-
-            <View style={[styles.invoiceRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{currentTrip.total}</Text>
-            </View>
+      <ScrollView style={styles.content}>
+        <View style={styles.rideSummary}>
+          <Text style={styles.sectionTitle}>Ride Summary</Text>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>From:</Text>
+            <Text style={styles.summaryValue}>
+              {currentRide.pickup.address}
+            </Text>
           </View>
-        ) : (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading invoice...</Text>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>To:</Text>
+            <Text style={styles.summaryValue}>
+              {currentRide.destination.address}
+            </Text>
           </View>
-        )}
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Distance:</Text>
+            <Text style={styles.summaryValue}>
+              {currentRide.distance.toFixed(1)} km
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Duration:</Text>
+            <Text style={styles.summaryValue}>
+              {Math.round(currentRide.duration)} min
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Fare:</Text>
+            <Text style={styles.fareAmount}>
+              ${currentRide.fare.toFixed(2)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.paymentSection}>
+          <Text style={styles.sectionTitle}>Payment Method</Text>
+          {PAYMENT_METHODS.map((method) => (
+            <TouchableOpacity
+              key={method.id}
+              style={[
+                styles.paymentMethod,
+                selectedPaymentMethod === method.id &&
+                  styles.selectedPaymentMethod,
+              ]}
+              onPress={() => setSelectedPaymentMethod(method.id)}
+            >
+              <Text style={styles.paymentIcon}>{method.icon}</Text>
+              <Text
+                style={[
+                  styles.paymentLabel,
+                  selectedPaymentMethod === method.id &&
+                    styles.selectedPaymentLabel,
+                ]}
+              >
+                {method.label}
+              </Text>
+              {selectedPaymentMethod === method.id && (
+                <Text style={styles.checkmark}>✓</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.totalSection}>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Subtotal:</Text>
+            <Text style={styles.totalValue}>
+              ${currentRide.fare.toFixed(2)}
+            </Text>
+          </View>
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Platform Fee:</Text>
+            <Text style={styles.totalValue}>
+              ${(currentRide.fare * 0.04).toFixed(2)}
+            </Text>
+          </View>
+          <View style={[styles.totalRow, styles.finalTotal]}>
+            <Text style={styles.finalTotalLabel}>Total:</Text>
+            <Text style={styles.finalTotalValue}>
+              ${(currentRide.fare * 1.04).toFixed(2)}
+            </Text>
+          </View>
+        </View>
       </ScrollView>
 
-      {currentTrip && (
-        <View style={styles.footer}>
-          <Button
-            title="Pay now"
-            onPress={handlePayNow}
-            style={styles.payNowButton}
-          />
-        </View>
-      )}
+      <View style={styles.footer}>
+        <Button
+          text={loading ? 'Processing...' : 'Pay Now'}
+          onPress={handlePayment}
+          variant="primary"
+          size="large"
+          disabled={loading || !selectedPaymentMethod}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -98,85 +250,130 @@ export default function PaymentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.neutral.black,
+    backgroundColor: '#fff',
   },
-  topBar: {
-    paddingTop: Layout.spacing.xl,
-    paddingHorizontal: Layout.spacing.m,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.neutral.black,
-  },
-  backButton: {
-    padding: Layout.spacing.s,
+  header: {
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.neutral.white,
+    marginBottom: 4,
   },
-  scrollView: {
-    flex: 1,
-  },
-  invoiceCard: {
-    backgroundColor: Colors.neutral.black,
-    padding: Layout.spacing.xl,
-    margin: Layout.spacing.m,
-    borderRadius: Layout.borderRadius.m,
-    borderWidth: 1,
-    borderColor: Colors.neutral.darker,
-  },
-  invoiceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Layout.spacing.s,
-  },
-  invoiceLabel: {
+  subtitle: {
     fontSize: 16,
-    color: Colors.neutral.white,
+    color: '#666',
   },
-  invoiceValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.neutral.white,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.neutral.darker,
-    marginVertical: Layout.spacing.m,
-  },
-  totalRow: {
-    marginTop: Layout.spacing.m,
-    paddingTop: Layout.spacing.m,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral.darker,
-  },
-  totalLabel: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.primary.default,
-  },
-  totalValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.primary.default,
-  },
-  loadingContainer: {
+  content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 16,
   },
   loadingText: {
+    textAlign: 'center',
+    marginTop: 50,
+    fontSize: 16,
+  },
+  rideSummary: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 24,
+  },
+  sectionTitle: {
     fontSize: 18,
-    color: Colors.neutral.white,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  fareAmount: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  paymentSection: {
+    marginBottom: 24,
+  },
+  paymentMethod: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  selectedPaymentMethod: {
+    borderColor: '#007AFF',
+    backgroundColor: '#f0f8ff',
+  },
+  paymentIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  paymentLabel: {
+    flex: 1,
+    fontSize: 16,
+  },
+  selectedPaymentLabel: {
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
+  checkmark: {
+    fontSize: 18,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  totalSection: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 8,
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  totalLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  totalValue: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  finalTotal: {
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  finalTotalLabel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  finalTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#007AFF',
   },
   footer: {
-    paddingHorizontal: Layout.spacing.xl,
-    paddingTop: Layout.spacing.m,
-    paddingBottom: Layout.spacing.xl,
-    backgroundColor: Colors.neutral.black,
-  },
-  payNowButton: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef',
   },
 });

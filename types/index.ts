@@ -1,9 +1,11 @@
 export interface Location {
   latitude: number;
   longitude: number;
+  address?: string;
 }
 
 export * from './ride';
+import { RideStatus } from './ride';
 
 export interface User {
   id: string;
@@ -14,20 +16,19 @@ export interface User {
   location?: Location;
 }
 
-export interface Driver extends User {
+export interface Driver {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
   role: 'driver';
   vehicle: Vehicle;
   isAvailable: boolean;
   rating: number;
   earnings: number;
   completedRides: number;
-  id: number;
-  name: string;
-  lat: number;
-  lng: number;
-  vehicle_plate: string;
-  avatar_url: string;
-  phone?: string;
+  currentLocation?: Location;
+  avatar_url?: string;
 }
 
 export interface Vehicle {
@@ -45,13 +46,16 @@ export interface Ride {
   driverId?: string;
   pickup: Location;
   destination: Location;
-  status: 'requested' | 'accepted' | 'started' | 'completed' | 'cancelled';
+  status: RideStatus;
   fare: number;
   distance: number;
   duration: number;
   createdAt: Date;
+  startedAt?: Date;
   completedAt?: Date;
-  polyline: string;
+  paymentMethod?: string;
+  rating?: number;
+  feedback?: string;
 }
 
 export interface Payment {
@@ -71,4 +75,12 @@ export interface Notification {
   type: 'ride' | 'payment' | 'promo' | 'system';
   read: boolean;
   createdAt: Date;
+}
+
+export interface MarkerData {
+  id: string;
+  coordinate: Location;
+  title?: string;
+  description?: string;
+  onPress?: () => void;
 } 

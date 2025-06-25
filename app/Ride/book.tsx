@@ -106,7 +106,7 @@ export default function BookRideScreen() {
       });
 
       setRideStatus('booking_map');
-      router.push('/Ride/map');
+      router.push('/Ride/confirmation');
     } catch (error) {
       console.error('Error creating booking:', error);
       const errorMessage =

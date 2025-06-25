@@ -31,6 +31,12 @@ const mockLocations = [
   { id: '3', name: 'Empire State Building', lat: 40.7484, lng: -73.9857 },
 ];
 
+interface RouteResult {
+  distance: number;  // in kilometers
+  duration: number;  // in minutes
+  polyline: string;  // encoded polyline string
+}
+
 export class MockGoogleServices {
   // Mock data for places
   private places: Place[] = [
@@ -144,6 +150,43 @@ export class MockGoogleServices {
     return points
       .map(point => `${point.lat.toFixed(5)},${point.lng.toFixed(5)}`)
       .join('|');
+  }
+
+  static async calculateRoute(origin: Location, destination: Location): Promise<RouteResult> {
+    // Mock implementation that returns reasonable values based on straight-line distance
+    const distance = this.calculateDistance(origin, destination);
+    const duration = Math.round(distance * 2); // Assume average speed of 30 km/h
+    
+    return {
+      distance,
+      duration,
+      polyline: this.generateMockPolyline(origin, destination)
+    };
+  }
+
+  private static calculateDistance(point1: Location, point2: Location): number {
+    const R = 6371; // Earth's radius in kilometers
+    const lat1 = this.toRadians(point1.latitude);
+    const lat2 = this.toRadians(point2.latitude);
+    const dLat = this.toRadians(point2.latitude - point1.latitude);
+    const dLon = this.toRadians(point2.longitude - point1.longitude);
+
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  private static toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  private static generateMockPolyline(origin: Location, destination: Location): string {
+    // This is a simplified mock that just returns a straight line
+    // In a real implementation, this would use the Google Maps Polyline encoding algorithm
+    return `${origin.latitude},${origin.longitude}|${destination.latitude},${destination.longitude}`;
   }
 }
 

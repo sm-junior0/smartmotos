@@ -1,9 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Text, Image, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  Alert,
+} from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { NetworkProvider, useNetwork } from '@/components/common/NetworkProvider';
+import {
+  NetworkProvider,
+  useNetwork,
+} from '@/components/common/NetworkProvider';
 import MapComponent from '@/components/common/MapComponent';
 import { spacing, typography, borderRadius } from '@/styles/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -12,45 +24,56 @@ import FloatingActionButton from '@/components/common/FloatingActionButton';
 import { colors } from '@/styles/theme';
 import { Menu } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { API_URL } from '@/config';
+import { getAuthToken } from '@/services/auth';
+import { rideService } from '@/services/ride';
+import { useAuth } from '@/hooks/AuthContext';
 
 // Define a type for ride request data
 interface RideRequest {
-    id: string;
-    riderName: string;
-    rating: number;
-    fare: string;
-    distance: string;
-    pickup: string;
-    dropoff: string;
-    pickupCoords: { latitude: number; longitude: number };
-    dropoffCoords: { latitude: number; longitude: number };
+  id: string;
+  riderName: string;
+  rating: number;
+  fare: string;
+  distance: string;
+  pickup: string;
+  dropoff: string;
+  pickupCoords: { latitude: number; longitude: number };
+  dropoffCoords: { latitude: number; longitude: number };
+  passenger_id: number;
+  booking_id: number;
 }
 
 function RidesScreen() {
   const [isOnline, setIsOnline] = useState(true);
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [rideRequestState, setRideRequestState] = useState('idle'); // 'idle', 'scanning', 'requests_available', 'request_details'
   const [availableRequests, setAvailableRequests] = useState<RideRequest[]>([]);
-  const [selectedRequest, setSelectedRequest] = useState<RideRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<RideRequest | null>(
+    null
+  );
   const networkState = useNetwork();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const router = useRouter();
+  const { user } = useAuth();
 
   // Stats data
   const stats = {
     acceptance: 95.0,
     rating: 4.75,
-    cancellation: 2.0
+    cancellation: 2.0,
   };
 
   // Route data (simplified for demo)
   const routeCoordinates = [
-    { latitude: -1.9440, longitude: 30.0618 }, // Example coordinates (Kigali area)
-    { latitude: -1.9500, longitude: 30.0700 },
-    { latitude: -1.9550, longitude: 30.0800 },
-    { latitude: -1.9600, longitude: 30.0900 },
-    { latitude: -1.9650, longitude: 30.1000 },
+    { latitude: -1.944, longitude: 30.0618 }, // Example coordinates (Kigali area)
+    { latitude: -1.95, longitude: 30.07 },
+    { latitude: -1.955, longitude: 30.08 },
+    { latitude: -1.96, longitude: 30.09 },
+    { latitude: -1.965, longitude: 30.1 },
   ];
 
   // Route info
@@ -59,6 +82,62 @@ function RidesScreen() {
     { time: '58 min', distance: '24.4 km', position: 'middle' },
     { time: '56 min', distance: '25 km', position: 'bottom' },
   ];
+
+  // Setup WebSocket connection for real-time ride requests
+  useEffect(() => {
+    if (user && isOnline) {
+      // Map 'driver' role to 'driver' for the ride service
+      const rideServiceUser = {
+        ...user,
+        role: 'driver' as const,
+      };
+      rideService.setCurrentUser(rideServiceUser);
+    }
+  }, [user, isOnline]);
+
+  // Listen for WebSocket messages (ride requests)
+  useEffect(() => {
+    if (!isOnline) return;
+
+    const handleMessage = (data: any) => {
+      console.log('[DriverRides] WebSocket message received:', data);
+
+      if (data.type === 'driver_notification' && data.driverId === user?.id) {
+        if (data.data?.type === 'ride_request') {
+          const booking = data.data.booking;
+          const rideRequest: RideRequest = {
+            id: booking.id.toString(),
+            riderName: booking.passengerName || 'Unknown Rider',
+            rating: 5, // Default rating
+            fare: `$${booking.fare}`,
+            distance: 'Calculating...', // Will be calculated
+            pickup: booking.pickup_location?.address || 'Pickup location',
+            dropoff: booking.dropoff_location?.address || 'Dropoff location',
+            pickupCoords: {
+              latitude: booking.pickup_location?.latitude || 0,
+              longitude: booking.pickup_location?.longitude || 0,
+            },
+            dropoffCoords: {
+              latitude: booking.dropoff_location?.latitude || 0,
+              longitude: booking.dropoff_location?.longitude || 0,
+            },
+            passenger_id: booking.passenger_id,
+            booking_id: booking.id,
+          };
+
+          // Add to available requests
+          setAvailableRequests((prev) => [...prev, rideRequest]);
+          setRideRequestState('requests_available');
+        }
+      }
+    };
+
+    rideService.addMessageHandler(handleMessage);
+
+    return () => {
+      rideService.removeMessageHandler(handleMessage);
+    };
+  }, [isOnline, user]);
 
   useEffect(() => {
     // Auto-switch to offline mode when network is disconnected
@@ -82,45 +161,84 @@ function RidesScreen() {
   const toggleOnlineStatus = () => {
     // Only allow going online if network is connected
     if (!isOnline && !networkState.isConnected) {
-      // Could show an alert here that network is required to go online
+      Alert.alert(
+        'Network Required',
+        'You need an internet connection to go online'
+      );
       return;
     }
     setIsOnline(!isOnline);
+
+    if (isOnline) {
+      // Going offline - clear any pending requests
+      setAvailableRequests([]);
+      setRideRequestState('idle');
+      setSelectedRequest(null);
+    }
   };
 
-  const handleHailRide = () => {
+  const handleHailRide = async () => {
     setRideRequestState('scanning');
-    // TODO: Implement actual scanning logic (e.g., API call to fetch requests)
 
-    // Simulate finding requests after a delay
-    setTimeout(() => {
-      const dummyRequests: RideRequest[] = [
-        {
-            id: '1',
-            riderName: 'Akuzwe G.',
-            rating: 4,
-            fare: '1500 Rwf',
-            distance: '11.1Km',
-            pickup: 'KG 11 Ave',
-            dropoff: 'KK 3Rd/RN3',
-            pickupCoords: { latitude: -1.9580, longitude: 30.0680 }, // Example pickup coordinate
-            dropoffCoords: { latitude: -1.9400, longitude: 30.0500 }, // Example dropoff coordinate
+    try {
+      // Fetch pending bookings from backend
+      const token = await getAuthToken();
+      const response = await fetch(`${API_URL}/bookings/pending`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-         {
-            id: '2',
-            riderName: 'Jane Doe',
-            rating: 5,
-            fare: '2000 Rwf',
-            distance: '15.5Km',
-            pickup: 'Kigali Heights',
-            dropoff: 'Kigali Convention Centre',
-            pickupCoords: { latitude: -1.9650, longitude: 30.0900 }, // Example pickup coordinate
-            dropoffCoords: { latitude: -1.9300, longitude: 30.0700 }, // Example dropoff coordinate
-        },
-      ];
-      setAvailableRequests(dummyRequests);
-      setRideRequestState('requests_available');
-    }, 3000); // Simulate scanning time
+      });
+
+      if (response.ok) {
+        const pendingBookings = await response.json();
+        console.log('[DriverRides] Pending bookings:', pendingBookings);
+
+        const rideRequests: RideRequest[] = pendingBookings.map(
+          (booking: any) => {
+            let pickupObj, dropoffObj;
+            try {
+              pickupObj = JSON.parse(booking.pickup_location);
+            } catch {
+              pickupObj = {};
+            }
+            try {
+              dropoffObj = JSON.parse(booking.dropoff_location);
+            } catch {
+              dropoffObj = {};
+            }
+            return {
+              id: booking.id.toString(),
+              riderName: booking.passenger?.name || 'Unknown Rider',
+              rating: 5, // Default rating
+              fare: `$${booking.fare}`,
+              distance: 'Calculating...', // Will be calculated
+              pickup: pickupObj.address || 'Pickup location',
+              dropoff: dropoffObj.address || 'Dropoff location',
+              pickupCoords: {
+                latitude: pickupObj.lat || 0,
+                longitude: pickupObj.lng || 0,
+              },
+              dropoffCoords: {
+                latitude: dropoffObj.lat || 0,
+                longitude: dropoffObj.lng || 0,
+              },
+              passenger_id: booking.passenger_id,
+              booking_id: booking.id,
+            };
+          }
+        );
+
+        setAvailableRequests(rideRequests);
+        setRideRequestState('requests_available');
+      } else {
+        console.error('[DriverRides] Failed to fetch pending bookings');
+        setRideRequestState('idle');
+      }
+    } catch (error) {
+      console.error('[DriverRides] Error fetching pending bookings:', error);
+      setRideRequestState('idle');
+    }
   };
 
   const handleMarkerPress = (request: RideRequest) => {
@@ -128,86 +246,153 @@ function RidesScreen() {
     setRideRequestState('request_details');
   };
 
-  const handleReject = () => {
-      setSelectedRequest(null);
-      setRideRequestState('scanning'); // Go back to scanning for other requests
-       // Or set to 'idle' if you only want to scan once per hail
+  const handleReject = async () => {
+    if (selectedRequest) {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(
+          `${API_URL}/bookings/${selectedRequest.booking_id}/reject`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          console.log('[DriverRides] Ride rejected successfully');
+          // Remove from available requests
+          setAvailableRequests((prev) =>
+            prev.filter((req) => req.id !== selectedRequest.id)
+          );
+        } else {
+          console.error('[DriverRides] Failed to reject ride');
+        }
+      } catch (error) {
+        console.error('[DriverRides] Error rejecting ride:', error);
+      }
+    }
+
+    setSelectedRequest(null);
+    setRideRequestState('scanning'); // Go back to scanning for other requests
   };
 
-  const handleAccept = () => {
-      if(selectedRequest) {
-           // TODO: Implement logic to accept the ride request (e.g., API call)
-           console.log('Accepted ride:', selectedRequest);
-           // Navigate to the navigate-pickup screen with ride data
-           router.push({
-             pathname: '/driver/rides/navigate-pickup',
-             params: { rideData: JSON.stringify(selectedRequest) },
-           });
-            // Reset state after accepting
-            setRideRequestState('idle');
-            setAvailableRequests([]);
-            setSelectedRequest(null);
+  const handleAccept = async () => {
+    if (selectedRequest) {
+      try {
+        const token = await getAuthToken();
+        const response = await fetch(
+          `${API_URL}/bookings/${selectedRequest.booking_id}/accept`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          console.log('[DriverRides] Ride accepted successfully');
+
+          // Navigate to the navigate-pickup screen with ride data
+          router.push({
+            pathname: '/driver/rides/navigate-pickup',
+            params: {
+              rideData: JSON.stringify(selectedRequest),
+              bookingId: selectedRequest.booking_id.toString(),
+            },
+          });
+
+          // Reset state after accepting
+          setRideRequestState('idle');
+          setAvailableRequests([]);
+          setSelectedRequest(null);
+        } else {
+          const errorData = await response.json();
+          Alert.alert('Error', errorData.error || 'Failed to accept ride');
+        }
+      } catch (error) {
+        console.error('[DriverRides] Error accepting ride:', error);
+        Alert.alert('Error', 'Failed to accept ride');
       }
+    }
   };
 
   const renderRideRequestDetails = () => {
-      if (!selectedRequest) return null;
+    if (!selectedRequest) return null;
 
-      return (
-           <View style={styles.rideRequestContainer}>
-                <View style={styles.rideRequestHeader}>
-                    <Text style={styles.rideRequestTitle}>Ride Request</Text>
-                </View>
-               
-                <View style={styles.riderInfo}>
-                    {/* Replace with actual rider image */}
-                     <Image source={{ uri: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-05-02%20215507-YaoGHTbbSX0Yy08KmjYtLH34ltoiYQ.png' }} style={styles.riderImage} />
-                    <View style={styles.riderDetails}>
-                        <Text style={styles.riderName}>{selectedRequest.riderName}</Text>
-                         <View style={styles.ratingContainer}>
-                            {[...Array(selectedRequest.rating)].map((_, index) => (
-                                <FontAwesome key={index} name="star" size={16} color={colors.primary.main} />
-                            ))}
-                             {[...Array(5 - selectedRequest.rating)].map((_, index) => (
-                                <FontAwesome key={index + selectedRequest.rating} name="star-o" size={16} color={colors.primary.main} />
-                            ))}
-                        </View>
-                    </View>
-                </View>
+    return (
+      <View style={styles.rideRequestContainer}>
+        <View style={styles.rideRequestHeader}>
+          <Text style={styles.rideRequestTitle}>Ride Request</Text>
+        </View>
 
-                 <View style={styles.rideRequestInfo}>
-                    <View style={styles.infoRow}>
-                         <FontAwesome name="money" size={18} color={colors.text.primary} />
-                         <Text style={styles.infoText}>{selectedRequest.fare}</Text>
-                     </View>
-                     <View style={styles.infoRow}>
-                         <FontAwesome name="road" size={18} color={colors.text.primary} />
-                         <Text style={styles.infoText}>{selectedRequest.distance}</Text>
-                     </View>
-                 </View>
+        <View style={styles.riderInfo}>
+          {/* Replace with actual rider image */}
+          <Image
+            source={{
+              uri: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-05-02%20215507-YaoGHTbbSX0Yy08KmjYtLH34ltoiYQ.png',
+            }}
+            style={styles.riderImage}
+          />
+          <View style={styles.riderDetails}>
+            <Text style={styles.riderName}>{selectedRequest.riderName}</Text>
+            <View style={styles.ratingContainer}>
+              {[...Array(selectedRequest.rating)].map((_, index) => (
+                <FontAwesome
+                  key={index}
+                  name="star"
+                  size={16}
+                  color={colors.primary.main}
+                />
+              ))}
+              {[...Array(5 - selectedRequest.rating)].map((_, index) => (
+                <FontAwesome
+                  key={index + selectedRequest.rating}
+                  name="star-o"
+                  size={16}
+                  color={colors.primary.main}
+                />
+              ))}
+            </View>
+          </View>
+        </View>
 
+        <View style={styles.rideRequestInfo}>
+          <View style={styles.infoRow}>
+            <FontAwesome name="money" size={18} color={colors.text.primary} />
+            <Text style={styles.infoText}>{selectedRequest.fare}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <FontAwesome name="road" size={18} color={colors.text.primary} />
+            <Text style={styles.infoText}>{selectedRequest.distance}</Text>
+          </View>
+        </View>
 
-                <View style={styles.locationInfo}>
-                    <Text style={styles.locationLabel}>Pickup</Text>
-                    <Text style={styles.locationText}>{selectedRequest.pickup}</Text>
-                    <Text style={styles.locationLabel}>Dropoff</Text>
-                    <Text style={styles.locationText}>{selectedRequest.dropoff}</Text>
-                </View>
+        <View style={styles.locationInfo}>
+          <Text style={styles.locationLabel}>Pickup</Text>
+          <Text style={styles.locationText}>{selectedRequest.pickup}</Text>
+          <Text style={styles.locationLabel}>Dropoff</Text>
+          <Text style={styles.locationText}>{selectedRequest.dropoff}</Text>
+        </View>
 
-
-                <View style={styles.buttonContainer}>
-                     <TouchableOpacity style={[styles.actionButton, styles.rejectButton]} onPress={handleReject}>
-                         <Text style={styles.actionButtonText}>Reject</Text>
-                     </TouchableOpacity>
-                     <TouchableOpacity 
-                        style={[styles.actionButton, styles.acceptButton]} 
-                        onPress={handleAccept}
-                      >
-                         <Text style={styles.actionButtonText}>Accept</Text>
-                     </TouchableOpacity>
-                </View>
-           </View>
-      );
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.rejectButton]}
+            onPress={handleReject}
+          >
+            <Text style={styles.actionButtonText}>Reject</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.acceptButton]}
+            onPress={handleAccept}
+          >
+            <Text style={styles.actionButtonText}>Accept</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -219,103 +404,127 @@ function RidesScreen() {
         </View>
       ) : (
         <>
-          <MapComponent 
+          <MapComponent
             routeCoordinates={routeCoordinates}
-            currentLocation={location?.coords ? {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude
-            } : null}
-            markers={rideRequestState === 'requests_available' ? availableRequests.map(request => ({
-              id: request.id,
-              coordinate: {
-                latitude: request.pickupCoords.latitude,
-                longitude: request.pickupCoords.longitude
-              },
-              title: request.riderName,
-              description: `Fare: ${request.fare}, Distance: ${request.distance}`,
-              onPress: () => handleMarkerPress(request)
-            })) : []}
+            currentLocation={
+              location?.coords
+                ? {
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                  }
+                : null
+            }
+            markers={
+              rideRequestState === 'requests_available'
+                ? availableRequests.map((request) => ({
+                    id: request.id,
+                    coordinate: {
+                      latitude: request.pickupCoords.latitude,
+                      longitude: request.pickupCoords.longitude,
+                    },
+                    title: request.riderName,
+                    description: `Fare: ${request.fare}, Distance: ${request.distance}`,
+                    onPress: () => handleMarkerPress(request),
+                  }))
+                : []
+            }
           />
-          
+
           {/* Top Info Bar */}
           <View style={styles.topInfoContainer}>
             <View style={styles.hamburgerContainer}>
-             <FloatingActionButton
-             icon={<Menu color={colors.text.primary} size={24} />}
-             position="top-left"
-             backgroundColor={colors.background.paper}
-             onPress={() => navigation.openDrawer()}
-             style={styles.menuButton}
-           />
+              <FloatingActionButton
+                icon={<Menu color={colors.text.primary} size={24} />}
+                position="top-left"
+                backgroundColor={colors.background.paper}
+                onPress={() => navigation.openDrawer()}
+                style={styles.menuButton}
+              />
             </View>
-            
+
             {/* Time and Distance Box (conditionally visible) */}
-            {rideRequestState !== 'requests_available' && rideRequestState !== 'request_details' && (
-            <View style={styles.timeDistanceBox}>
-              <View style={styles.carIconContainer}>
-                <Ionicons name="car" size={18} color="#555" />
-              </View>
-              <View>
-                <Text style={styles.timeText}>{routeInfo[0].time}</Text>
-                <Text style={styles.distanceText}>{routeInfo[0].distance}</Text>
-              </View>
-            </View>
-            )}
-            
+            {rideRequestState !== 'requests_available' &&
+              rideRequestState !== 'request_details' && (
+                <View style={styles.timeDistanceBox}>
+                  <View style={styles.carIconContainer}>
+                    <Ionicons name="car" size={18} color="#555" />
+                  </View>
+                  <View>
+                    <Text style={styles.timeText}>{routeInfo[0].time}</Text>
+                    <Text style={styles.distanceText}>
+                      {routeInfo[0].distance}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
             <TouchableOpacity style={styles.profileButton}>
-              <Image 
-                source={{ uri: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-05-02%20215507-YaoGHTbbSX0Yy08KjuYtLH34ltoiYQ.png' }} 
+              <Image
+                source={{
+                  uri: 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Screenshot%202025-05-02%20215507-YaoGHTbbSX0Yy08KjuYtLH34ltoiYQ.png',
+                }}
                 style={styles.profileImage}
               />
             </TouchableOpacity>
           </View>
-          
+
           {/* Middle Info Box (conditionally visible) */}
-          {rideRequestState !== 'requests_available' && rideRequestState !== 'request_details' && (
-          <View style={styles.middleInfoBox}>
-            <View style={styles.carIconContainer}>
-              <Ionicons name="car" size={18} color="#555" />
-            </View>
-            <View>
-              <Text style={styles.timeText}>{routeInfo[1].time}</Text>
-              <Text style={styles.distanceText}>{routeInfo[1].distance}</Text>
-            </View>
-          </View>
-          )}
-          
+          {rideRequestState !== 'requests_available' &&
+            rideRequestState !== 'request_details' && (
+              <View style={styles.middleInfoBox}>
+                <View style={styles.carIconContainer}>
+                  <Ionicons name="car" size={18} color="#555" />
+                </View>
+                <View>
+                  <Text style={styles.timeText}>{routeInfo[1].time}</Text>
+                  <Text style={styles.distanceText}>
+                    {routeInfo[1].distance}
+                  </Text>
+                </View>
+              </View>
+            )}
+
           {/* Bottom Info Box (conditionally visible) */}
-           {rideRequestState !== 'requests_available' && rideRequestState !== 'request_details' && (
-          <View style={styles.bottomInfoBox}>
-            <View style={styles.carIconContainer}>
-              <Ionicons name="car" size={18} color="#555" />
-            </View>
-            <View>
-              <Text style={styles.timeText}>{routeInfo[2].time}</Text>
-              <Text style={styles.distanceText}>{routeInfo[2].distance}</Text>
-            </View>
-          </View>
-          )}
-          
+          {rideRequestState !== 'requests_available' &&
+            rideRequestState !== 'request_details' && (
+              <View style={styles.bottomInfoBox}>
+                <View style={styles.carIconContainer}>
+                  <Ionicons name="car" size={18} color="#555" />
+                </View>
+                <View>
+                  <Text style={styles.timeText}>{routeInfo[2].time}</Text>
+                  <Text style={styles.distanceText}>
+                    {routeInfo[2].distance}
+                  </Text>
+                </View>
+              </View>
+            )}
+
           {/* Status Buttons / Hail Ride / Scanning (conditionally visible) */}
           <View style={styles.statusButtonsContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.statusButton, { backgroundColor: '#000' }]}
               onPress={toggleOnlineStatus}
             >
               <FontAwesome name="user" size={20} color="#FFD700" />
-              <Text style={styles.statusText}>{isOnline ? 'Online' : 'Offline'}</Text>
+              <Text style={styles.statusText}>
+                {isOnline ? 'Online' : 'Offline'}
+              </Text>
             </TouchableOpacity>
-            
+
             {rideRequestState === 'idle' && isOnline && (
-               <TouchableOpacity style={styles.hailRideButton} onPress={handleHailRide}>
-              <Text style={styles.hailRideText}>Hail Ride</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.hailRideButton}
+                onPress={handleHailRide}
+              >
+                <Text style={styles.hailRideText}>Hail Ride</Text>
+              </TouchableOpacity>
             )}
-            
+
             {rideRequestState === 'scanning' && (
-                 <View style={styles.scanningContainer}>
-                      <Text style={styles.scanningText}>Scanning...</Text>
-                 </View>
+              <View style={styles.scanningContainer}>
+                <Text style={styles.scanningText}>Scanning...</Text>
+              </View>
             )}
 
             {/* Zoom Button (always visible) */}
@@ -323,53 +532,53 @@ function RidesScreen() {
               <Ionicons name="locate" size={24} color="#555" />
             </TouchableOpacity>
           </View>
-          
+
           {/* Bottom Panel (conditionally visible) */}
           {rideRequestState === 'idle' && (
-          <View style={styles.bottomPanel}>
-            <View style={styles.bottomPanelHandle} />
-            
-            <Text style={[
-              styles.connectionStatus, 
-              { color: isOnline ? '#FFD700' : 'white' }
-            ]}>
-              {isOnline 
-                ? "You're back Online" 
-                : "You are currently offline"}
-            </Text>
-            
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <View style={styles.statIconContainer}>
-                  <FontAwesome name="check" size={20} color="#FFD700" />
+            <View style={styles.bottomPanel}>
+              <View style={styles.bottomPanelHandle} />
+
+              <Text
+                style={[
+                  styles.connectionStatus,
+                  { color: isOnline ? '#FFD700' : 'white' },
+                ]}
+              >
+                {isOnline ? "You're back Online" : 'You are currently offline'}
+              </Text>
+
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}>
+                  <View style={styles.statIconContainer}>
+                    <FontAwesome name="check" size={20} color="#FFD700" />
+                  </View>
+                  <Text style={styles.statValue}>{stats.acceptance}%</Text>
+                  <Text style={styles.statLabel}>Acceptance</Text>
                 </View>
-                <Text style={styles.statValue}>{stats.acceptance}%</Text>
-                <Text style={styles.statLabel}>Acceptance</Text>
-              </View>
-              
-              <View style={styles.statDivider} />
-              
-              <View style={styles.statItem}>
-                <View style={styles.statIconContainer}>
-                  <FontAwesome name="star" size={20} color="#FFD700" />
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.statItem}>
+                  <View style={styles.statIconContainer}>
+                    <FontAwesome name="star" size={20} color="#FFD700" />
+                  </View>
+                  <Text style={styles.statValue}>{stats.rating}</Text>
+                  <Text style={styles.statLabel}>Rating</Text>
                 </View>
-                <Text style={styles.statValue}>{stats.rating}</Text>
-                <Text style={styles.statLabel}>Rating</Text>
-              </View>
-              
-              <View style={styles.statDivider} />
-              
-              <View style={styles.statItem}>
-                <View style={styles.statIconContainer}>
-                  <FontAwesome name="times" size={20} color="#FF0000" />
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.statItem}>
+                  <View style={styles.statIconContainer}>
+                    <FontAwesome name="times" size={20} color="#FF0000" />
+                  </View>
+                  <Text style={styles.statValue}>{stats.cancellation}%</Text>
+                  <Text style={styles.statLabel}>Cancellation</Text>
                 </View>
-                <Text style={styles.statValue}>{stats.cancellation}%</Text>
-                <Text style={styles.statLabel}>Cancellation</Text>
               </View>
             </View>
-          </View>
           )}
-          
+
           {/* Ride Request Details View (conditionally rendered as a bottom sheet) */}
           {rideRequestState === 'request_details' && renderRideRequestDetails()}
         </>
@@ -383,7 +592,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingTop: spacing.md
+    paddingTop: spacing.md,
   },
   menuButton: {
     position: 'absolute',
@@ -483,7 +692,7 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   statusButton: {
     width: 70,
@@ -497,13 +706,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
-    marginBottom: 14
+    marginBottom: 14,
   },
   statusText: {
     color: '#FFD700',
     marginTop: 4,
     fontSize: 12,
-    fontFamily: typography.fontFamily.bold
+    fontFamily: typography.fontFamily.bold,
   },
   hailRideButton: {
     backgroundColor: '#000',
@@ -514,18 +723,18 @@ const styles = StyleSheet.create({
   },
   hailRideText: {
     color: 'white',
-    fontFamily: typography.fontFamily.bold
+    fontFamily: typography.fontFamily.bold,
   },
-   scanningContainer: {
-        backgroundColor: '#000',
-        paddingVertical: 8,
-        paddingHorizontal: 15,
-        borderRadius: 20,
-        marginHorizontal: 20,
-   },
-   scanningText: {
+  scanningContainer: {
+    backgroundColor: '#000',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    marginHorizontal: 20,
+  },
+  scanningText: {
     color: 'white',
-    fontFamily: typography.fontFamily.bold
+    fontFamily: typography.fontFamily.bold,
   },
   zoomButton: {
     width: 40,
@@ -585,107 +794,107 @@ const styles = StyleSheet.create({
   statLabel: {
     color: 'white',
     fontSize: 14,
-    fontFamily: typography.fontFamily.medium
+    fontFamily: typography.fontFamily.medium,
   },
   statDivider: {
     width: 1,
     height: '100%',
     backgroundColor: '#333',
   },
-   rideRequestContainer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: colors.background.paper,
-        borderTopLeftRadius: borderRadius.xl,
-        borderTopRightRadius: borderRadius.xl,
-        padding: spacing.xl,
-   },
-    rideRequestHeader: {
-        alignItems: 'center',
-        marginBottom: spacing.md,
-    },
-    rideRequestTitle: {
-        fontFamily: typography.fontFamily.bold,
-        fontSize: typography.fontSize.xl,
-        color: colors.text.primary,
-    },
-    riderInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: spacing.lg,
-    },
-    riderImage: {
-        width: 60,
-        height: 60,
-        borderRadius: borderRadius.full,
-        marginRight: spacing.md,
-    },
-    riderDetails: {
-        flex: 1,
-    },
-    riderName: {
-        fontFamily: typography.fontFamily.semiBold,
-        fontSize: typography.fontSize.lg,
-        color: colors.text.primary,
-        marginBottom: spacing.xs,
-    },
-     ratingContainer: {
-        flexDirection: 'row',
-     },
-     rideRequestInfo: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginBottom: spacing.md
-     },
-     infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm
-     },
-     infoText: {
-        fontFamily: typography.fontFamily.medium,
-        fontSize: typography.fontSize.md,
-        color: colors.text.primary,
-     },
-     locationInfo: {
-        marginBottom: spacing.xl
-     },
-     locationLabel: {
-        fontFamily: typography.fontFamily.medium,
-        fontSize: typography.fontSize.sm,
-        color: colors.text.secondary,
-        marginBottom: spacing.xs,
-     },
-     locationText: {
-        fontFamily: typography.fontFamily.semiBold,
-        fontSize: typography.fontSize.md,
-        color: colors.text.primary,
-        marginBottom: spacing.md
-     },
-     buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-     },
-     actionButton: {
-        flex: 1,
-        paddingVertical: spacing.md,
-        borderRadius: borderRadius.md,
-        alignItems: 'center',
-     },
-     actionButtonText: {
-        fontFamily: typography.fontFamily.bold,
-        fontSize: typography.fontSize.lg,
-        color: colors.primary.contrastText,
-     },
-      rejectButton: {
-        backgroundColor: colors.error.main,
-        marginRight: spacing.md
-      },
-      acceptButton: {
-        backgroundColor: colors.primary.main,
-      },
+  rideRequestContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.background.paper,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    padding: spacing.xl,
+  },
+  rideRequestHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  rideRequestTitle: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize.xl,
+    color: colors.text.primary,
+  },
+  riderInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  riderImage: {
+    width: 60,
+    height: 60,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.md,
+  },
+  riderDetails: {
+    flex: 1,
+  },
+  riderName: {
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.fontSize.lg,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+  },
+  rideRequestInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: spacing.md,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  infoText: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+  },
+  locationInfo: {
+    marginBottom: spacing.xl,
+  },
+  locationLabel: {
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
+  },
+  locationText: {
+    fontFamily: typography.fontFamily.semiBold,
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.md,
+    alignItems: 'center',
+  },
+  actionButtonText: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize.lg,
+    color: colors.primary.contrastText,
+  },
+  rejectButton: {
+    backgroundColor: colors.error.main,
+    marginRight: spacing.md,
+  },
+  acceptButton: {
+    backgroundColor: colors.primary.main,
+  },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',

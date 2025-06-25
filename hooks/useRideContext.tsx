@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { Location } from '../types';
 
 // Define the possible states of a ride
 export type RideStatus =
@@ -32,8 +33,8 @@ export interface BookingDetails {
   polyline?: string;
   paymentMethod?: string;
   bargainAmount?: number;
-  bookingId?: number;
-  driverId?: number;
+  bookingId?: string;
+  driverId?: string;
   fare?: number;
   status?: string;
   stops?: string[];
@@ -47,7 +48,7 @@ export interface DriverInfo {
   rating: number;
   plate: string;
   avatar: string;
-  location?: { latitude: number; longitude: number };
+  location?: Location;
 }
 
 // Define the structure of the trip details
@@ -63,7 +64,7 @@ export interface TripDetails {
 // Define the structure of an available ride (for map scanning)
 export interface AvailableRide {
   id: string;
-  location: { latitude: number; longitude: number };
+  location: Location;
   // Add other relevant details for available rides (e.g., driver, vehicle type, price estimate)
 }
 

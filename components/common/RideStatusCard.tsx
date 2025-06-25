@@ -1,114 +1,235 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '@/styles/theme';
-import { Star } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Driver, Ride, RideStatus } from '../../types';
+import Button from './Button';
 
 interface RideStatusCardProps {
-  time: string;
-  pickup: string;
-  dropoff: string;
-  fare: string;
-  paymentMethod: string;
-  rating?: number;
-  style?: object;
+  ride: Ride;
+  nearbyDrivers?: Driver[];
+  onDriverSelect?: (driver: Driver) => void;
+  onStatusUpdate?: (status: RideStatus) => void;
+  onRefreshDrivers?: () => void;
+  isDriver?: boolean;
 }
 
-export default function RideStatusCard({
-  time,
-  pickup,
-  dropoff,
-  fare,
-  paymentMethod,
-  rating = 5,
-  style,
-}: RideStatusCardProps) {
-  return (
-    <View style={[styles.container, style]}>
-      <View style={styles.timeContainer}>
-        <Text style={styles.time}>{time}</Text>
-      </View>
+export const RideStatusCard: React.FC<RideStatusCardProps> = ({
+  ride,
+  nearbyDrivers,
+  onDriverSelect,
+  onStatusUpdate,
+  onRefreshDrivers,
+  isDriver = false,
+}) => {
+  console.log('RideStatusCard nearbyDrivers:', nearbyDrivers);
 
-      <View style={styles.locationContainer}>
-        <Text style={styles.location}>{pickup}</Text>
-        <Text style={styles.separator}>-</Text>
-        <Text style={styles.location}>{dropoff}</Text>
-      </View>
+  const renderDriverList = () => {
+    if (!nearbyDrivers || !onDriverSelect) return null;
 
-      <View style={styles.detailsContainer}>
-        <View style={styles.fareContainer}>
-          <Text style={styles.fareAmount}>{fare}</Text>
-          <Text style={styles.paymentMethod}>{paymentMethod}</Text>
+    return (
+      <View style={styles.driverList}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Available Drivers</Text>
+          {onRefreshDrivers && (
+            <TouchableOpacity
+              onPress={onRefreshDrivers}
+              style={styles.refreshButton}
+            >
+              <Text style={styles.refreshButtonText}>🔄 Refresh</Text>
+            </TouchableOpacity>
+          )}
         </View>
+        {nearbyDrivers.length === 0 ? (
+          <Text style={styles.noDriversText}>No drivers available nearby</Text>
+        ) : (
+          nearbyDrivers.map((driver) => (
+            <TouchableOpacity
+              key={driver.id}
+              style={styles.driverItem}
+              onPress={() => onDriverSelect(driver)}
+            >
+              <View style={styles.driverInfo}>
+                <Text style={styles.driverName}>{driver.name}</Text>
+                <Text style={styles.vehicleInfo}>
+                  {driver.vehicle.make} {driver.vehicle.model} -{' '}
+                  {driver.vehicle.plateNumber}
+                </Text>
+                <Text style={styles.rating}>
+                  Rating: {driver.rating.toFixed(1)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
+    );
+  };
 
-        <View style={styles.ratingContainer}>
-          {[...Array(5)].map((_, index) => (
-            <Star
-              key={index}
-              size={16}
-              color={index < rating ? colors.primary.main : colors.text.secondary}
-              fill={index < rating ? colors.primary.main : 'none'}
+  const renderDriverActions = () => {
+    if (!isDriver || !onStatusUpdate) return null;
+
+    switch (ride.status) {
+      case 'driver_assigned':
+        return (
+          <View style={styles.actionButtons}>
+            <Button
+              text="Start Ride"
+              onPress={() => onStatusUpdate('in_progress')}
+              variant="primary"
             />
-          ))}
-        </View>
+            <Button
+              text="Cancel"
+              onPress={() => onStatusUpdate('cancelled')}
+              variant="outline"
+            />
+          </View>
+        );
+      case 'in_progress':
+        return (
+          <View style={styles.actionButtons}>
+            <Button
+              text="Pause Ride"
+              onPress={() => onStatusUpdate('paused')}
+              variant="primary"
+            />
+            <Button
+              text="Complete"
+              onPress={() => onStatusUpdate('completed')}
+              variant="primary"
+            />
+          </View>
+        );
+      case 'paused':
+        return (
+          <Button
+            text="Resume Ride"
+            onPress={() => onStatusUpdate('in_progress')}
+            variant="primary"
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.status}>Status: {ride.status}</Text>
+        <Text style={styles.fare}>Fare: ${ride.fare.toFixed(2)}</Text>
       </View>
+
+      <View style={styles.details}>
+        <Text style={styles.location}>
+          From: {ride.pickup.address || 'Loading...'}
+        </Text>
+        <Text style={styles.location}>
+          To: {ride.destination.address || 'Loading...'}
+        </Text>
+        <Text style={styles.tripInfo}>
+          Distance: {ride.distance.toFixed(1)} km • Duration:{' '}
+          {Math.round(ride.duration)} min
+        </Text>
+      </View>
+
+      {renderDriverList()}
+      {renderDriverActions()}
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginVertical: spacing.xs,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  timeContainer: {
-    marginBottom: spacing.xs,
-  },
-  time: {
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-  },
-  locationContainer: {
+  header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.sm,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  status: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    textTransform: 'capitalize',
+  },
+  fare: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  details: {
+    marginBottom: 16,
   },
   location: {
-    fontFamily: typography.fontFamily.semiBold,
-    fontSize: typography.fontSize.md,
-    color: colors.text.primary,
-    flex: 1,
+    fontSize: 14,
+    marginBottom: 8,
   },
-  separator: {
-    fontFamily: typography.fontFamily.regular,
-    fontSize: typography.fontSize.md,
-    color: colors.text.secondary,
-    marginHorizontal: spacing.xs,
+  tripInfo: {
+    fontSize: 14,
+    color: '#666',
   },
-  detailsContainer: {
+  driverList: {
+    marginTop: 16,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
-  fareContainer: {
-    flexDirection: 'column',
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
-  fareAmount: {
-    fontFamily: typography.fontFamily.bold,
-    fontSize: typography.fontSize.lg,
-    color: colors.primary.main,
+  refreshButton: {
+    padding: 8,
   },
-  paymentMethod: {
-    fontFamily: typography.fontFamily.regular,
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
+  refreshButtonText: {
+    fontSize: 14,
+    color: '#666',
   },
-  ratingContainer: {
+  noDriversText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  driverItem: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  driverInfo: {
+    flex: 1,
+  },
+  driverName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  vehicleInfo: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  rating: {
+    fontSize: 14,
+    color: '#666',
+  },
+  actionButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
   },
 });

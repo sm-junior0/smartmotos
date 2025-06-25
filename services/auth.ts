@@ -254,7 +254,7 @@ export const getAccountDetails = async (): Promise<ApiResponse<AccountDetails>> 
       return { success: false, error: data.error || 'Failed to fetch details' };
     }
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 };
 
@@ -336,5 +336,15 @@ export const verifyDriverPhone = async (phone: string, code: string): Promise<Ap
     };
   } catch (error) {
     return { success: false, error: 'Network error. Please try again.' };
+  }
+};
+
+export const getAuthToken = async (): Promise<string> => {
+  try {
+    const token = await SecureStore.getItemAsync('userToken');
+    return token || '';
+  } catch (error) {
+    console.error('Error getting auth token:', error instanceof Error ? error.message : error);
+    return '';
   }
 };

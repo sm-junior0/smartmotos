@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/Colors';
@@ -7,6 +7,7 @@ import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import SocialAuthButtons from '@/components/UI/SocialAuthButtons';
 import { useAuth } from '@/hooks/AuthContext';
+import { rideService } from '@/services/ride';
 
 const styles = StyleSheet.create({
   container: {
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
 });
 
 export default function Login() {
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const [phone, setPhone] = useState('+250');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({
@@ -62,6 +63,17 @@ export default function Login() {
     password: '',
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      // Map 'passenger' role to 'rider' for the ride service
+      const rideServiceUser = {
+        ...user,
+        role: 'rider' as const,
+      };
+      rideService.setCurrentUser(rideServiceUser);
+    }
+  }, [user]);
 
   const handlePhoneChange = (value: string) => {
     if (value.startsWith('+250')) {

@@ -1,15 +1,30 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Switch,
+  Alert,
+} from 'react-native';
 import { colors, typography, spacing, borderRadius } from '@/styles/theme';
 import { Menu, Bell } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
-import RideStatusCard from '@/components/common/RideStatusCard';
-import { DrawerNavigationProp, useDrawerStatus } from '@react-navigation/drawer';
+import { RideStatusCard } from '../../components/common/RideStatusCard';
+import {
+  DrawerNavigationProp,
+  useDrawerStatus,
+} from '@react-navigation/drawer';
+import { useRouter } from 'expo-router';
+import MapComponent from '../../components/common/MapComponent';
+import Button from '../../components/common/Button';
+import { Ride, RideStatus, Location } from '../../types';
+import { rideService } from '../../services/ride';
 
 const dummyTrips = [
   {
-    id: '1',  
+    id: '1',
     time: '7:15 AM',
     pickup: 'Nyabugogo',
     dropoff: 'Masaka',
@@ -45,11 +60,97 @@ const stats = {
 
 const timeFilters = ['Today', 'Week', 'Month', 'All time'];
 
-export default function HomeScreen() {
+export default function DriverHome() {
+  const router = useRouter();
   const [selectedFilter, setSelectedFilter] = useState('Today');
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const [isActive, setIsActive] = useState(false);
+  const [currentRide, setCurrentRide] = useState<Ride | null>(null);
+  const [driverId] = useState('driver-123'); // In real app, get from auth context
 
-  const isDrawOpen = useDrawerStatus() === 'open'; 
+  const isDrawOpen = useDrawerStatus() === 'open';
+
+  useEffect(() => {
+    const handleMessage = (data: any) => {
+      if (data.type === 'driver_notification' && data.driverId === driverId) {
+        switch (data.data.type) {
+          case 'ride_request':
+            handleRideRequest(data.data.ride);
+            break;
+          case 'ride_update':
+            setCurrentRide(data.data.ride);
+            break;
+          case 'payment_completed':
+            handlePaymentCompleted(data.data.ride);
+            break;
+        }
+      }
+    };
+
+    rideService.addMessageHandler(handleMessage);
+
+    return () => {
+      rideService.removeMessageHandler(handleMessage);
+    };
+  }, [driverId]);
+
+  const handleToggleActive = async (value: boolean) => {
+    try {
+      await rideService.updateDriverStatus(driverId, value);
+      setIsActive(value);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update status');
+    }
+  };
+
+  const handleRideRequest = (ride: Ride) => {
+    Alert.alert(
+      'New Ride Request',
+      `From: ${formatLocation(ride.pickup)}\nTo: ${formatLocation(
+        ride.destination
+      )}\nFare: $${ride.fare}`,
+      [
+        {
+          text: 'Reject',
+          style: 'cancel',
+          onPress: () => handleDriverResponse(ride.id, false),
+        },
+        {
+          text: 'Accept',
+          onPress: () => handleDriverResponse(ride.id, true),
+        },
+      ]
+    );
+  };
+
+  const formatLocation = (location: Location) => {
+    return `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`;
+  };
+
+  const handleDriverResponse = async (rideId: string, accepted: boolean) => {
+    try {
+      await rideService.handleDriverResponse(rideId, driverId, accepted);
+      if (accepted) {
+        const ride = await rideService.getRideDetails(rideId);
+        if (ride) setCurrentRide(ride);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to respond to ride request');
+    }
+  };
+
+  const handleStatusUpdate = async (status: RideStatus) => {
+    try {
+      await rideService.updateRideStatus(currentRide!.id, status);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update ride status');
+    }
+  };
+
+  const handlePaymentCompleted = (ride: Ride) => {
+    Alert.alert('Payment Received', 'The passenger has completed the payment');
+    setCurrentRide(null);
+  };
 
   return (
     <View style={styles.container}>
@@ -107,20 +208,31 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Trips today</Text>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {dummyTrips.map((trip) => (
-            <RideStatusCard
-              key={trip.id}
-              time={trip.time}
-              pickup={trip.pickup}
-              dropoff={trip.dropoff}
-              fare={trip.fare}
-              paymentMethod={trip.paymentMethod}
-              rating={trip.rating}
+        <View style={styles.header}>
+          <Switch value={isActive} onValueChange={handleToggleActive} />
+          {isActive ? (
+            <Button
+              text="Go Offline"
+              onPress={() => handleToggleActive(false)}
+              style={styles.offlineButton}
+              variant="primary"
             />
-          ))}
-        </ScrollView>
+          ) : (
+            <Button
+              text="Go Online"
+              onPress={() => handleToggleActive(true)}
+              style={styles.onlineButton}
+              variant="primary"
+            />
+          )}
+        </View>
+        {currentRide && (
+          <RideStatusCard
+            ride={currentRide}
+            isDriver={true}
+            onStatusUpdate={handleStatusUpdate}
+          />
+        )}
       </View>
     </View>
   );
@@ -130,7 +242,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.primary.main,
-    paddingTop: spacing.md
+    paddingTop: spacing.md,
   },
   header: {
     height: 60,
@@ -146,7 +258,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: spacing.md,
-    paddingTop: spacing['2xl']
+    paddingTop: spacing['2xl'],
   },
   filterButton: {
     paddingVertical: spacing.sm,
@@ -198,5 +310,11 @@ const styles = StyleSheet.create({
     fontSize: typography.fontSize.xl,
     color: colors.text.primary,
     marginBottom: spacing.md,
+  },
+  onlineButton: {
+    backgroundColor: '#34C759',
+  },
+  offlineButton: {
+    backgroundColor: '#FF3B30',
   },
 });
