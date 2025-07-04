@@ -9,12 +9,12 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import MapComponent from '@/components/common/MapComponent';
+import RealTimeNavigation from '@/components/driver/RealTimeNavigation';
 import { colors } from '@/styles/theme';
 import { spacing, typography, borderRadius } from '@/styles/theme';
 import { API_URL } from '@/config';
 import { getAuthToken } from '@/services/auth';
-import * as Location from 'expo-location';
+import { Location } from '@/types';
 
 interface RideData {
   id: string;
@@ -31,80 +31,288 @@ interface RideData {
 }
 
 export default function NavigatePickupScreen() {
+  // --- New State for backend booking status ---
+  const [bookingStatus, setBookingStatus] = useState<string | null>(null);
+
   const params = useLocalSearchParams();
   const router = useRouter();
   const [rideData, setRideData] = useState<RideData | null>(null);
-  const [currentLocation, setCurrentLocation] =
-    useState<Location.LocationObject | null>(null);
   const [rideStatus, setRideStatus] = useState<
     'navigating' | 'arrived' | 'started' | 'completed'
   >('navigating');
-  const [isAtPickup, setIsAtPickup] = useState(false);
+  const [isNavigatingToPickup, setIsNavigatingToPickup] = useState(true);
 
   useEffect(() => {
     if (params.rideData) {
       try {
         const parsedRideData = JSON.parse(params.rideData as string);
         setRideData(parsedRideData);
+        // Fetch booking status from backend
+        fetchBookingStatus(parsedRideData.booking_id);
       } catch (error) {
         console.error('Error parsing ride data:', error);
         Alert.alert('Error', 'Invalid ride data');
         router.back();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.rideData]);
 
-    // Get current location
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required');
+  // Helper to fetch booking status from backend
+  const fetchBookingStatus = async (bookingId: number) => {
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(`${API_URL}/bookings/${bookingId}` , {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setBookingStatus(data.status || null);
+      } else {
+        setBookingStatus(null);
+      }
+    } catch (err) {
+      setBookingStatus(null);
+    }
+  };
+
+  const handleArrivedAtPickup = async () => {
+    if (!rideData) return;
+
+    // Defensive: Only allow if bookingStatus is correct
+    if (bookingStatus !== 'driver_assigned' && bookingStatus !== 'en_route') {
+      Alert.alert('Cannot mark arrival', 'Ride is not in the correct state to mark arrival.');
+      return;
+    }
+
+    setRideStatus('arrived');
+    setIsNavigatingToPickup(false);
+
+    try {
+      const token = await getAuthToken();
+      console.log(
+        'Making API request to:',
+        `${API_URL}/bookings/${rideData.booking_id}/arrived`
+      );
+      console.log('Booking ID:', rideData.booking_id);
+      console.log('Token:', token ? 'Present' : 'Missing');
+
+      const response = await fetch(
+        `${API_URL}/bookings/${rideData.booking_id}/arrived`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        // Response is not JSON (likely HTML error page)
+        const textResponse = await response.text();
+        console.error('Non-JSON response received:', textResponse);
+        Alert.alert(
+          'Server Error',
+          'The server returned an error. Please check your connection and try again.'
+        );
         return;
       }
 
-      let location = await Location.getCurrentPositionAsync({});
-      setCurrentLocation(location);
-    })();
-  }, [params.rideData]);
-
-  // Check if driver is at pickup location
-  useEffect(() => {
-    if (rideData && currentLocation) {
-      const distance = calculateDistance(
-        currentLocation.coords.latitude,
-        currentLocation.coords.longitude,
-        rideData.pickupCoords.latitude,
-        rideData.pickupCoords.longitude
-      );
-
-      // If within 100 meters of pickup location
-      if (distance <= 0.1) {
-        setIsAtPickup(true);
-        if (rideStatus === 'navigating') {
-          setRideStatus('arrived');
-        }
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Success response:', data);
+        // Refresh backend status after marking arrival
+        fetchBookingStatus(rideData.booking_id);
+        Alert.alert(
+          'Arrived at Pickup',
+          'You have arrived at the pickup location'
+        );
       } else {
-        setIsAtPickup(false);
+        const errorData = await response.json();
+        console.error('API error response:', errorData);
+        // Refresh backend status in case of error
+        fetchBookingStatus(rideData.booking_id);
+        Alert.alert(
+          'Error',
+          errorData.error ||
+            errorData.message ||
+            'Failed to update arrival status'
+        );
+      }
+    } catch (error) {
+      console.error('Error updating arrival status:', error);
+
+      // Check if it's a JSON parse error
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        Alert.alert(
+          'Server Error',
+          'The server returned an invalid response. Please try again later.'
+        );
+      } else {
+        Alert.alert(
+          'Network Error',
+          'Failed to connect to the server. Please check your internet connection.'
+        );
       }
     }
-  }, [currentLocation, rideData, rideStatus]);
+  };
 
-  const calculateDistance = (
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number
-  ): number => {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+  const handleArrivedAtDropoff = async () => {
+    if (!rideData) return;
+
+    setRideStatus('completed');
+
+    try {
+      const token = await getAuthToken();
+      console.log(
+        'Making API request to:',
+        `${API_URL}/bookings/${rideData.booking_id}/complete`
+      );
+      console.log('Booking ID:', rideData.booking_id);
+
+      const response = await fetch(
+        `${API_URL}/bookings/${rideData.booking_id}/complete`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      console.log('Response status:', response.status);
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('Non-JSON response received:', textResponse);
+        Alert.alert(
+          'Server Error',
+          'The server returned an error. Please check your connection and try again.'
+        );
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Success response:', data);
+        Alert.alert('Ride Completed', 'Your ride has been completed!');
+        router.push('/driver/rides');
+      } else {
+        const errorData = await response.json();
+        console.error('API error response:', errorData);
+        Alert.alert(
+          'Error',
+          errorData.error || errorData.message || 'Failed to complete ride'
+        );
+      }
+    } catch (error) {
+      console.error('Error completing ride:', error);
+
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        Alert.alert(
+          'Server Error',
+          'The server returned an invalid response. Please try again later.'
+        );
+      } else {
+        Alert.alert(
+          'Network Error',
+          'Failed to connect to the server. Please check your internet connection.'
+        );
+      }
+    }
+  };
+
+  const handleCancelNavigation = () => {
+    Alert.alert(
+      'Cancel Navigation',
+      'Are you sure you want to cancel navigation?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes',
+          style: 'destructive',
+          onPress: async () => {
+            if (!rideData) return;
+
+            try {
+              const token = await getAuthToken();
+              console.log(
+                'Making API request to:',
+                `${API_URL}/bookings/${rideData.booking_id}/cancel`
+              );
+              console.log('Booking ID:', rideData.booking_id);
+
+              const response = await fetch(
+                `${API_URL}/bookings/${rideData.booking_id}/cancel`,
+                {
+                  method: 'POST',
+                  headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+
+              console.log('Response status:', response.status);
+
+              // Check if response is JSON
+              const contentType = response.headers.get('content-type');
+              if (!contentType || !contentType.includes('application/json')) {
+                const textResponse = await response.text();
+                console.error('Non-JSON response received:', textResponse);
+                Alert.alert(
+                  'Server Error',
+                  'The server returned an error. Please check your connection and try again.'
+                );
+                return;
+              }
+
+              if (response.ok) {
+                const data = await response.json();
+                console.log('Success response:', data);
+                Alert.alert('Ride Cancelled', 'The ride has been cancelled');
+                router.push('/driver/rides');
+              } else {
+                const errorData = await response.json();
+                console.error('API error response:', errorData);
+                Alert.alert(
+                  'Error',
+                  errorData.error ||
+                    errorData.message ||
+                    'Failed to cancel ride'
+                );
+              }
+            } catch (error) {
+              console.error('Error cancelling ride:', error);
+
+              if (
+                error instanceof SyntaxError &&
+                error.message.includes('JSON')
+              ) {
+                Alert.alert(
+                  'Server Error',
+                  'The server returned an invalid response. Please try again later.'
+                );
+              } else {
+                Alert.alert(
+                  'Network Error',
+                  'Failed to connect to the server. Please check your internet connection.'
+                );
+              }
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleStartRide = async () => {
@@ -112,236 +320,123 @@ export default function NavigatePickupScreen() {
 
     try {
       const token = await getAuthToken();
+      console.log(
+        'Making API request to:',
+        `${API_URL}/bookings/${rideData.booking_id}/start`
+      );
+      console.log('Booking ID:', rideData.booking_id);
+
       const response = await fetch(
         `${API_URL}/bookings/${rideData.booking_id}/start`,
         {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         }
       );
 
+      console.log('Response status:', response.status);
+
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('Non-JSON response received:', textResponse);
+        Alert.alert(
+          'Server Error',
+          'The server returned an error. Please check your connection and try again.'
+        );
+        return;
+      }
+
       if (response.ok) {
+        const data = await response.json();
+        console.log('Success response:', data);
         setRideStatus('started');
         Alert.alert('Ride Started', 'Your ride is now in progress!');
       } else {
         const errorData = await response.json();
-        Alert.alert('Error', errorData.error || 'Failed to start ride');
+        console.error('API error response:', errorData);
+        Alert.alert(
+          'Error',
+          errorData.error || errorData.message || 'Failed to start ride'
+        );
       }
     } catch (error) {
       console.error('Error starting ride:', error);
-      Alert.alert('Error', 'Failed to start ride');
-    }
-  };
 
-  const handleCompleteRide = async () => {
-    if (!rideData) return;
-
-    try {
-      const token = await getAuthToken();
-      const response = await fetch(
-        `${API_URL}/bookings/${rideData.booking_id}/complete`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (response.ok) {
-        setRideStatus('completed');
-        Alert.alert('Ride Completed', 'Your ride has been completed!');
-        // Navigate to payment screen or back to rides
-        router.push('/driver/rides');
+      if (error instanceof SyntaxError && error.message.includes('JSON')) {
+        Alert.alert(
+          'Server Error',
+          'The server returned an invalid response. Please try again later.'
+        );
       } else {
-        const errorData = await response.json();
-        Alert.alert('Error', errorData.error || 'Failed to complete ride');
+        Alert.alert(
+          'Network Error',
+          'Failed to connect to the server. Please check your internet connection.'
+        );
       }
-    } catch (error) {
-      console.error('Error completing ride:', error);
-      Alert.alert('Error', 'Failed to complete ride');
     }
-  };
-
-  const handleCancelRide = () => {
-    Alert.alert('Cancel Ride', 'Are you sure you want to cancel this ride?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes',
-        style: 'destructive',
-        onPress: async () => {
-          if (!rideData) return;
-
-          try {
-            const token = await getAuthToken();
-            const response = await fetch(
-              `${API_URL}/bookings/${rideData.booking_id}/cancel`,
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
-
-            if (response.ok) {
-              Alert.alert('Ride Cancelled', 'The ride has been cancelled');
-              router.push('/driver/rides');
-            } else {
-              const errorData = await response.json();
-              Alert.alert('Error', errorData.error || 'Failed to cancel ride');
-            }
-          } catch (error) {
-            console.error('Error cancelling ride:', error);
-            Alert.alert('Error', 'Failed to cancel ride');
-          }
-        },
-      },
-    ]);
   };
 
   if (!rideData) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text>Loading ride data...</Text>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading ride data...</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
-  const routeCoordinates = [
-    currentLocation?.coords
-      ? {
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-        }
-      : rideData.pickupCoords,
-    rideData.pickupCoords,
-    rideData.dropoffCoords,
-  ].filter(Boolean);
+  const pickupLocation: Location = {
+    latitude: rideData.pickupCoords.latitude,
+    longitude: rideData.pickupCoords.longitude,
+    address: rideData.pickup,
+  };
+
+  const dropoffLocation: Location = {
+    latitude: rideData.dropoffCoords.latitude,
+    longitude: rideData.dropoffCoords.longitude,
+    address: rideData.dropoff,
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <MapComponent
-        routeCoordinates={routeCoordinates}
-        currentLocation={
-          currentLocation?.coords
-            ? {
-                latitude: currentLocation.coords.latitude,
-                longitude: currentLocation.coords.longitude,
-              }
-            : null
-        }
-        markers={[
-          {
-            id: 'pickup',
-            coordinate: rideData.pickupCoords,
-            title: 'Pickup Location',
-            description: rideData.pickup,
-          },
-          {
-            id: 'dropoff',
-            coordinate: rideData.dropoffCoords,
-            title: 'Dropoff Location',
-            description: rideData.dropoff,
-          },
-        ]}
+      <RealTimeNavigation
+        pickupLocation={pickupLocation}
+        dropoffLocation={dropoffLocation}
+        isNavigatingToPickup={isNavigatingToPickup}
+        onArrivedAtPickup={handleArrivedAtPickup}
+        onArrivedAtDropoff={handleArrivedAtDropoff}
+        onCancelNavigation={handleCancelNavigation}
+        bookingStatus={bookingStatus}
       />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {rideStatus === 'navigating'
-            ? 'Navigate to Pickup'
-            : rideStatus === 'arrived'
-            ? 'Arrived at Pickup'
-            : rideStatus === 'started'
-            ? 'Ride in Progress'
-            : 'Ride Completed'}
-        </Text>
-      </View>
-
-      {/* Ride Info Card */}
-      <View style={styles.rideInfoCard}>
-        <View style={styles.riderInfo}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={24} color={colors.primary.main} />
-          </View>
-          <View style={styles.riderDetails}>
-            <Text style={styles.riderName}>{rideData.riderName}</Text>
-            <Text style={styles.rideStatus}>
-              {rideStatus === 'navigating'
-                ? 'Heading to pickup...'
-                : rideStatus === 'arrived'
-                ? 'Waiting for passenger'
-                : rideStatus === 'started'
-                ? 'Ride in progress'
-                : 'Ride completed'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.rideDetails}>
-          <View style={styles.detailRow}>
-            <Ionicons name="location" size={16} color={colors.text.secondary} />
-            <Text style={styles.detailText}>{rideData.pickup}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Ionicons
-              name="location-outline"
-              size={16}
-              color={colors.text.secondary}
-            />
-            <Text style={styles.detailText}>{rideData.dropoff}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Ionicons name="cash" size={16} color={colors.text.secondary} />
-            <Text style={styles.detailText}>{rideData.fare}</Text>
-          </View>
+      {/* Ride Info Overlay */}
+      <View style={styles.rideInfoOverlay}>
+        <View style={styles.rideInfo}>
+          <Text style={styles.riderName}>{rideData.riderName}</Text>
+          <Text style={styles.rideDetails}>
+            Fare: {rideData.fare} • Distance: {rideData.distance}
+          </Text>
+          <Text style={styles.rideStatus}>
+            Status: {rideStatus.charAt(0).toUpperCase() + rideStatus.slice(1)}
+          </Text>
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          {rideStatus === 'navigating' && (
-            <Text style={styles.statusText}>
-              {isAtPickup
-                ? 'You have arrived at pickup location'
-                : 'Navigate to pickup location'}
-            </Text>
-          )}
-
-          {rideStatus === 'arrived' && (
-            <TouchableOpacity
-              style={styles.startButton}
-              onPress={handleStartRide}
-            >
-              <Text style={styles.startButtonText}>Start Ride</Text>
-            </TouchableOpacity>
-          )}
-
-          {rideStatus === 'started' && (
-            <TouchableOpacity
-              style={styles.completeButton}
-              onPress={handleCompleteRide}
-            >
-              <Text style={styles.completeButtonText}>Complete Ride</Text>
-            </TouchableOpacity>
-          )}
-
+        {rideStatus === 'arrived' && (
           <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={handleCancelRide}
+            style={styles.startRideButton}
+            onPress={handleStartRide}
           >
-            <Text style={styles.cancelButtonText}>Cancel Ride</Text>
+            <Ionicons name="play" size={20} color="#FFF" />
+            <Text style={styles.startRideButtonText}>Start Ride</Text>
           </TouchableOpacity>
-        </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -350,132 +445,62 @@ export default function NavigatePickupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background.default,
+    backgroundColor: '#000',
   },
-  header: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background.paper,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  backButton: {
-    marginRight: spacing.md,
-  },
-  headerTitle: {
+  loadingContainer: {
     flex: 1,
-    fontFamily: typography.fontFamily.bold,
-    fontSize: typography.fontSize.lg,
-    color: colors.text.primary,
-  },
-  rideInfoCard: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.background.paper,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    padding: spacing.xl,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  riderInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.primary.light,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.md,
   },
-  riderDetails: {
-    flex: 1,
+  loadingText: {
+    color: '#FFF',
+    fontSize: 16,
+  },
+  rideInfoOverlay: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: '#FFF',
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  rideInfo: {
+    marginBottom: spacing.md,
   },
   riderName: {
-    fontFamily: typography.fontFamily.bold,
     fontSize: typography.fontSize.lg,
+    fontWeight: 'bold',
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
-  rideStatus: {
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.fontSize.sm,
-    color: colors.text.secondary,
-  },
   rideDetails: {
-    marginBottom: spacing.lg,
+    fontSize: typography.fontSize.md,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
-  detailRow: {
+  rideStatus: {
+    fontSize: typography.fontSize.sm,
+    color: colors.primary.main,
+    fontWeight: '500',
+  },
+  startRideButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.sm,
-  },
-  detailText: {
-    flex: 1,
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.fontSize.md,
-    color: colors.text.primary,
-    marginLeft: spacing.sm,
-  },
-  actionButtons: {
-    gap: spacing.md,
-  },
-  statusText: {
-    textAlign: 'center',
-    fontFamily: typography.fontFamily.medium,
-    fontSize: typography.fontSize.md,
-    color: colors.text.secondary,
-    paddingVertical: spacing.sm,
-  },
-  startButton: {
+    justifyContent: 'center',
     backgroundColor: colors.primary.main,
-    paddingVertical: spacing.md,
+    padding: spacing.md,
     borderRadius: borderRadius.md,
-    alignItems: 'center',
+    gap: spacing.sm,
   },
-  startButtonText: {
-    fontFamily: typography.fontFamily.bold,
-    fontSize: typography.fontSize.lg,
-    color: colors.primary.contrastText,
-  },
-  completeButton: {
-    backgroundColor: colors.success.main,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
-  completeButtonText: {
-    fontFamily: typography.fontFamily.bold,
-    fontSize: typography.fontSize.lg,
-    color: colors.success.contrastText,
-  },
-  cancelButton: {
-    backgroundColor: colors.error.main,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontFamily: typography.fontFamily.bold,
-    fontSize: typography.fontSize.lg,
-    color: colors.error.contrastText,
+  startRideButtonText: {
+    color: '#FFF',
+    fontSize: typography.fontSize.md,
+    fontWeight: '600',
   },
 });

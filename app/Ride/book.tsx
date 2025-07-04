@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import type { BookingDetails } from '@/types';
 import {
   View,
   StyleSheet,
@@ -14,11 +13,11 @@ import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
-import { useRide } from '@/hooks/useRideContext';
+import { useRide, BookingDetails } from '@/hooks/useRideContext';
 import { ChevronLeft, Search } from 'lucide-react-native';
 import { bookingService } from '@/services/bookingService';
 import { LocationPicker } from '@/components/Pcommon/LocationPicker';
-import { mockGoogleServices } from '@/services/mockGoogleServices';
+import MapboxService from '@/services/mapboxService';
 
 // Dummy payment methods for demonstration
 const PAYMENT_METHODS = [
@@ -38,6 +37,7 @@ export default function BookRideScreen() {
     lat: number;
     lng: number;
   } | null>(null);
+  const mapboxService = MapboxService.getInstance();
 
   const handleLocationSelect = async (
     type: 'pickup' | 'dropoff',
@@ -56,7 +56,7 @@ export default function BookRideScreen() {
       });
     }
 
-    // If both locations are selected, calculate route
+    // If both locations are selected, calculate route using Mapbox
     if (
       (type === 'pickup' && dropoffCoords) ||
       (type === 'dropoff' && pickupCoords)
@@ -65,12 +65,18 @@ export default function BookRideScreen() {
       const destination = type === 'pickup' ? dropoffCoords! : coordinates;
 
       try {
-        const route = await mockGoogleServices.getRoute(origin, destination);
-        updateBookingDetails({
-          distance: route.distance.value / 1000, // Convert to km
-          duration: route.duration.value / 60, // Convert to minutes
-          polyline: route.polyline,
-        });
+        const route = await mapboxService.getDirections(
+          { latitude: origin.lat, longitude: origin.lng },
+          { latitude: destination.lat, longitude: destination.lng }
+        );
+
+        if (route) {
+          updateBookingDetails({
+            distance: route.distance / 1000, // Convert to km
+            duration: route.duration / 60, // Convert to minutes
+            polyline: JSON.stringify(route.coordinates), // Store route coordinates
+          });
+        }
       } catch (error) {
         console.error('Error calculating route:', error);
       }
@@ -90,17 +96,23 @@ export default function BookRideScreen() {
 
     try {
       setLoading(true);
-      const booking = await bookingService.createBooking({
+      const bookingPayload = {
         pickup_location: pickupCoords,
         dropoff_location: dropoffCoords,
         pickup_time: new Date().toLocaleTimeString('en-US', { hour12: false }),
         payment_method: rideState.bookingDetails.paymentMethod,
         bargain_amount: rideState.bookingDetails.bargainAmount,
-      });
+      };
+      console.log('Booking payload being sent:', bookingPayload);
+      const booking = await bookingService.createBooking(bookingPayload);
 
       updateBookingDetails({
-        bookingId: booking.booking_id,
-        driverId: booking.driver_id,
+        bookingId: (typeof booking.booking_id === 'string' || typeof booking.booking_id === 'number')
+          ? booking.booking_id.toString()
+          : undefined,
+        driverId: (typeof booking.driver_id === 'string' || typeof booking.driver_id === 'number')
+          ? booking.driver_id.toString()
+          : (console.warn('driver_id is undefined or null, skipping driverId assignment in updateBookingDetails. Value:', booking.driver_id), undefined),
         fare: booking.fare,
         status: booking.status,
       });

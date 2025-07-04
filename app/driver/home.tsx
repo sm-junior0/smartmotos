@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,9 @@ import MapComponent from '../../components/common/MapComponent';
 import Button from '../../components/common/Button';
 import { Ride, RideStatus, Location } from '../../types';
 import { rideService } from '../../services/ride';
+import * as LocationLib from 'expo-location';
+import { apiService } from '@/services/api';
+import type { Location as LocationType } from '../../types';
 
 const dummyTrips = [
   {
@@ -67,8 +70,41 @@ export default function DriverHome() {
   const [isActive, setIsActive] = useState(false);
   const [currentRide, setCurrentRide] = useState<Ride | null>(null);
   const [driverId] = useState('driver-123'); // In real app, get from auth context
+  const [locationWatcher, setLocationWatcher] =
+    useState<LocationLib.LocationSubscription | null>(null);
+  const [lastSentLocation, setLastSentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const lastSentLocationRef = useRef<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const isDrawOpen = useDrawerStatus() === 'open';
+
+  useEffect(() => {
+    lastSentLocationRef.current = lastSentLocation;
+  }, [lastSentLocation]);
+
+  const getDistanceFromLatLonInKm = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   useEffect(() => {
     const handleMessage = (data: any) => {
@@ -96,6 +132,106 @@ export default function DriverHome() {
 
   const handleToggleActive = async (value: boolean) => {
     try {
+      if (value) {
+        let { status } = await LocationLib.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission denied',
+            'Location permission is required to go online.'
+          );
+          return;
+        }
+        // Get initial location
+        let loc = await LocationLib.getCurrentPositionAsync({});
+        const initialLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+        setLastSentLocation(initialLocation);
+        try {
+          console.log('Sending to backend (initial):', {
+            driverId,
+            location: initialLocation,
+          });
+          const res = await apiService.updateDriverLocation(
+            driverId,
+            initialLocation
+          );
+          console.log(
+            'Initial location sent to backend:',
+            initialLocation,
+            res
+          );
+        } catch (err) {
+          console.error('Failed to update initial location:', err);
+        }
+        // Start watching location
+        console.log('Watcher started');
+        const watcher = await LocationLib.watchPositionAsync(
+          {
+            accuracy: LocationLib.Accuracy.High,
+            distanceInterval: 1, // Lowered for easier testing
+          },
+          async (location) => {
+            console.log('Watcher callback fired');
+            const prev = lastSentLocationRef.current;
+            const newLoc = {
+              latitude: location.coords.latitude,
+              longitude: location.coords.longitude,
+            };
+            // Log every new location
+            console.log('New location received:', newLoc);
+            console.log('Location update received:', newLoc, 'Previous:', prev);
+
+            if (!prev) {
+              setLastSentLocation(newLoc);
+              try {
+                console.log('Sending to backend (no prev):', {
+                  driverId,
+                  location: newLoc,
+                });
+                const res = await apiService.updateDriverLocation(
+                  driverId,
+                  newLoc
+                );
+                console.log('Location sent to backend (no prev):', res);
+              } catch (err) {
+                console.error('Failed to update location (no prev):', err);
+              }
+              return;
+            }
+            const distance = getDistanceFromLatLonInKm(
+              prev.latitude,
+              prev.longitude,
+              newLoc.latitude,
+              newLoc.longitude
+            );
+            if (distance >= 1) {
+              setLastSentLocation(newLoc);
+              try {
+                console.log('Sending to backend (moved 1km):', {
+                  driverId,
+                  location: newLoc,
+                });
+                const res = await apiService.updateDriverLocation(
+                  driverId,
+                  newLoc
+                );
+                console.log('Location sent to backend (moved 1km):', res);
+              } catch (err) {
+                console.error('Failed to update location (moved 1km):', err);
+              }
+            }
+          }
+        );
+        setLocationWatcher(watcher);
+      } else {
+        // Stop watching location
+        if (locationWatcher) {
+          locationWatcher.remove();
+          setLocationWatcher(null);
+        }
+      }
       await rideService.updateDriverStatus(driverId, value);
       setIsActive(value);
     } catch (error) {

@@ -13,6 +13,7 @@ import {
   Switch,
   Alert,
   RefreshControl,
+  Linking,
 } from 'react-native';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
 import {
@@ -87,16 +88,70 @@ export default function App() {
 
     try {
       if (value) {
-        // TODO: Replace with real location once Google Maps API is integrated
-        const passengerPickupLocation = { lat: -1.9397, lng: 30.0557 }; // Nyabugogo
-        const driverSimulatedLocation = {
-          latitude: passengerPickupLocation.lat + 0.01,
-          longitude: passengerPickupLocation.lng,
+        // Check if location services are enabled
+        let locationEnabled = await Location.hasServicesEnabledAsync();
+        if (!locationEnabled) {
+          Alert.alert(
+            'Location Services Disabled',
+            'Please enable location services in your device settings to go online.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+          setIsUpdating(false);
+          return;
+        }
+
+        // Request location permissions
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission denied',
+            'Location permission is required to go online. Please grant location permission in settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+          setIsUpdating(false);
+          return;
+        }
+
+        // Get current location
+        let location;
+        try {
+          location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+        } catch (locationError) {
+          console.error('Location error:', locationError);
+          Alert.alert(
+            'Location Unavailable',
+            'Unable to get your current location. Please check that:\n\n• Location services are enabled\n• You are outdoors or have GPS signal\n• Try moving to a different location',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Try Again',
+                onPress: () => handleAvailabilityChange(true),
+              },
+            ]
+          );
+          setIsUpdating(false);
+          return;
+        }
+
+        const currentLocation = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
         };
-        await apiService.updateDriverLocation(
-          driver.id,
-          driverSimulatedLocation
-        );
+
+        console.log('Sending current location to backend:', {
+          driverId: driver.id,
+          location: currentLocation,
+        });
+
+        await apiService.updateDriverLocation(driver.id, currentLocation);
       }
 
       await apiService.updateDriverStatus(driver.id, newStatus);

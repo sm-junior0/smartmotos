@@ -4,6 +4,7 @@ apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 
+def hermesEnabled = project.hasProperty('hermesEnabled') ? project.getProperty('hermesEnabled').toBoolean() : true
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -87,9 +88,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.anonymous.smartmotosapp'
+    namespace 'com.nihonor.smartmotosapp'
     defaultConfig {
-        applicationId 'com.anonymous.smartmotosapp'
+        applicationId 'com.nihonor.smartmotosapp'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -77,13 +77,20 @@ class BookingService {
       const data = await response.json();
 
       // Send notification to the assigned driver
-      if (data.driver_id) {
-        await notificationService.sendBookingNotification(
-          data.driver_id.toString(),
-          'driver',
-          'new_booking',
-          'You have a new ride request'
-        );
+      if (data.driver_id !== undefined && data.driver_id !== null) {
+        console.log('Sending notification to driver_id:', data.driver_id);
+        if (typeof data.driver_id === 'string' || typeof data.driver_id === 'number') {
+          await notificationService.sendBookingNotification(
+            data.driver_id.toString(),
+            'driver',
+            'new_booking',
+            'You have a new ride request'
+          );
+        } else {
+          console.warn('driver_id is not a valid type for toString:', data.driver_id);
+        }
+      } else {
+        console.warn('driver_id is undefined or null, skipping driver notification. Value:', data.driver_id);
       }
 
       return data;
@@ -141,13 +148,20 @@ class BookingService {
       const data = await response.json();
 
       // Send notification to passenger
-      if (data.passenger_id) {
-        await notificationService.sendBookingNotification(
-          data.passenger_id.toString(),
-          'passenger',
-          'accepted',
-          'Your ride has been accepted'
-        );
+      if (data.passenger_id !== undefined && data.passenger_id !== null) {
+        console.log('Sending notification to passenger_id:', data.passenger_id);
+        if (typeof data.passenger_id === 'string' || typeof data.passenger_id === 'number') {
+          await notificationService.sendBookingNotification(
+            data.passenger_id.toString(),
+            'passenger',
+            'accepted',
+            'Your ride has been accepted'
+          );
+        } else {
+          console.warn('passenger_id is not a valid type for toString:', data.passenger_id);
+        }
+      } else {
+        console.warn('passenger_id is undefined or null, skipping passenger notification. Value:', data.passenger_id);
       }
 
       return data;
@@ -171,13 +185,20 @@ class BookingService {
       const data = await response.json();
 
       // Send notification to passenger
-      if (data.passenger_id) {
-        await notificationService.sendBookingNotification(
-          data.passenger_id.toString(),
-          'passenger',
-          'rejected',
-          'Your ride request was rejected'
-        );
+      if (data.passenger_id !== undefined && data.passenger_id !== null) {
+        console.log('Sending notification to passenger_id:', data.passenger_id);
+        if (typeof data.passenger_id === 'string' || typeof data.passenger_id === 'number') {
+          await notificationService.sendBookingNotification(
+            data.passenger_id.toString(),
+            'passenger',
+            'rejected',
+            'Your ride request was rejected'
+          );
+        } else {
+          console.warn('passenger_id is not a valid type for toString:', data.passenger_id);
+        }
+      } else {
+        console.warn('passenger_id is undefined or null, skipping passenger notification. Value:', data.passenger_id);
       }
 
       return data;
@@ -201,13 +222,20 @@ class BookingService {
       const data = await response.json();
 
       // Send notification to passenger
-      if (data.passenger_id) {
-        await notificationService.sendBookingNotification(
-          data.passenger_id.toString(),
-          'passenger',
-          'started',
-          'Your ride has started'
-        );
+      if (data.passenger_id !== undefined && data.passenger_id !== null) {
+        console.log('Sending notification to passenger_id:', data.passenger_id);
+        if (typeof data.passenger_id === 'string' || typeof data.passenger_id === 'number') {
+          await notificationService.sendBookingNotification(
+            data.passenger_id.toString(),
+            'passenger',
+            'started',
+            'Your ride has started'
+          );
+        } else {
+          console.warn('passenger_id is not a valid type for toString:', data.passenger_id);
+        }
+      } else {
+        console.warn('passenger_id is undefined or null, skipping passenger notification. Value:', data.passenger_id);
       }
 
       return data;
@@ -231,13 +259,20 @@ class BookingService {
       const data = await response.json();
 
       // Send notification to passenger
-      if (data.passenger_id) {
-        await notificationService.sendBookingNotification(
-          data.passenger_id.toString(),
-          'passenger',
-          'completed',
-          'Your ride has been completed'
-        );
+      if (data.passenger_id !== undefined && data.passenger_id !== null) {
+        console.log('Sending notification to passenger_id:', data.passenger_id);
+        if (typeof data.passenger_id === 'string' || typeof data.passenger_id === 'number') {
+          await notificationService.sendBookingNotification(
+            data.passenger_id.toString(),
+            'passenger',
+            'completed',
+            'Your ride has been completed'
+          );
+        } else {
+          console.warn('passenger_id is not a valid type for toString:', data.passenger_id);
+        }
+      } else {
+        console.warn('passenger_id is undefined or null, skipping passenger notification. Value:', data.passenger_id);
       }
 
       return data;
@@ -267,4 +302,23 @@ class BookingService {
   }
 }
 
-export const bookingService = new BookingService(); 
+export const bookingService = new BookingService();
+
+export const createBooking = async (bookingDetails: any) => {
+  // Get token from SecureStore if needed
+  let token = null;
+  try {
+    token = await SecureStore.getItemAsync('userToken');
+  } catch {}
+  const headers: any = {
+    'Content-Type': 'application/json',
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`${API_URL}/bookings`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(bookingDetails),
+  });
+  return response.json();
+}; 

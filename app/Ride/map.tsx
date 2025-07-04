@@ -18,6 +18,7 @@ import {
   Menu,
   ChevronLeft,
   Search,
+  MapPin,
 } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
@@ -26,7 +27,8 @@ import MapComponent from '@/components/Pcommon/MapComponent';
 import { useRide, DriverInfo, AvailableRide } from '@/hooks/useRideContext';
 import FloatingActionButton from '@/components/common/FloatingActionButton';
 import { apiService } from '@/services/api';
-import { mockGoogleServices } from '@/services/mockGoogleServices';
+import MapboxService from '@/services/mapboxService';
+import * as Location from 'expo-location';
 
 const DUMMY_DRIVER: DriverInfo = {
   id: '1',
@@ -82,6 +84,7 @@ export default function MapScreen() {
     setCurrentDriver,
     setCurrentTrip,
     setAvailableRides,
+    updateBookingDetails,
   } = useRide();
   const navigation = useNavigation();
   const [showOverlay, setShowOverlay] = useState(false);
@@ -93,6 +96,92 @@ export default function MapScreen() {
   const [nearbyDrivers, setNearbyDrivers] = useState<AvailableRide[]>([]);
   const [routePolyline, setRoutePolyline] = useState<string | null>(null);
   const [assignedDriver, setAssignedDriver] = useState<DriverInfo | null>(null);
+  const [isSelectingLocation, setIsSelectingLocation] = useState<
+    'pickup' | 'dropoff' | null
+  >(null);
+  const [selectedPickup, setSelectedPickup] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [selectedDropoff, setSelectedDropoff] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const mapboxService = MapboxService.getInstance();
+
+  // Get user's current location
+  useEffect(() => {
+    const getUserLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert(
+            'Permission denied',
+            'Location permission is required to use the map.'
+          );
+          return;
+        }
+
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        const currentLocation = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        };
+
+        setUserLocation(currentLocation);
+
+        // Set current location as default pickup location
+        setSelectedPickup(currentLocation);
+
+        // Update booking details with user's current location as pickup
+        try {
+          const address = await mapboxService.reverseGeocode(
+            currentLocation.latitude,
+            currentLocation.longitude
+          );
+
+          updateBookingDetails({
+            pickup: {
+              description: address || 'Current Location',
+              coords: {
+                lat: currentLocation.latitude,
+                lng: currentLocation.longitude,
+              },
+            },
+          });
+
+          console.log('Set user location as pickup:', currentLocation); // Debug log
+        } catch (error) {
+          console.error('Error reverse geocoding user location:', error);
+          // Still set the pickup location even if reverse geocoding fails
+          updateBookingDetails({
+            pickup: {
+              description: 'Current Location',
+              coords: {
+                lat: currentLocation.latitude,
+                lng: currentLocation.longitude,
+              },
+            },
+          });
+        }
+      } catch (error) {
+        console.error('Error getting user location:', error);
+        Alert.alert('Location Error', 'Could not get your current location.');
+      }
+    };
+
+    getUserLocation();
+  }, []);
+
+  // Ensure the ride status is set to booking_map when component mounts
+  useEffect(() => {
+    if (rideState.status === 'idle') {
+      setRideStatus('booking_map');
+    }
+  }, [rideState.status, setRideStatus]);
 
   const pickupCoords = useMemo(() => {
     if (!rideState.bookingDetails.pickup?.coords) return null;
@@ -112,71 +201,80 @@ export default function MapScreen() {
 
   useEffect(() => {
     const fetchMapData = async () => {
-      if (!pickupCoords || !dropoffCoords) {
-        router.replace('/Ride/book');
-        return;
-      }
-
-      try {
-        // Fetch nearby drivers
-        const drivers = (await apiService.getNearbyDrivers(
-          pickupCoords
-        )) as any[];
-        setNearbyDrivers(
-          drivers.map((d) => ({
-            ...d,
-            location: { latitude: d.latitude, longitude: d.longitude },
-          }))
-        );
-
-        // Find and set the assigned driver details
-        if (rideState.bookingDetails.driverId) {
-          const assigned: any = await apiService.getDriverProfile(
-            rideState.bookingDetails.driverId.toString()
+      // Only fetch drivers and route if both pickup and dropoff are set
+      if (pickupCoords && dropoffCoords) {
+        try {
+          // Fetch nearby drivers
+          const drivers = (await apiService.getNearbyDrivers(
+            pickupCoords
+          )) as any[];
+          setNearbyDrivers(
+            drivers.map((d) => ({
+              ...d,
+              location: { latitude: d.latitude, longitude: d.longitude },
+            }))
           );
-          if (assigned) {
-            const driverLocation = drivers.find((d) => d.id === assigned.id);
-            const driverData: DriverInfo = {
-              id: assigned.id,
-              name: assigned.name || 'Unnamed Driver',
-              rating: assigned.rating || 0,
-              plate: assigned.vehicle_plate || 'No Plate',
-              avatar:
-                assigned.avatar_url || 'https://example.com/default-avatar.png', // A default placeholder
-              location: driverLocation
-                ? {
-                    latitude: driverLocation.lat,
-                    longitude: driverLocation.lng,
-                  }
-                : undefined, // Align with DriverInfo type
-            };
-            setAssignedDriver(driverData);
-            setCurrentDriver(driverData);
-          }
-        }
 
-        // Generate route polyline
-        const route = await mockGoogleServices.getRoute(
-          { lat: pickupCoords.latitude, lng: pickupCoords.longitude },
-          { lat: dropoffCoords.latitude, lng: dropoffCoords.longitude }
-        );
-        setRoutePolyline(route.polyline);
-      } catch (error) {
-        Alert.alert('Map Error', 'Could not load map data. Please try again.');
-        console.error('Error fetching map data:', error);
-        console.log(error);
+          // Find and set the assigned driver details
+          if (rideState.bookingDetails.driverId) {
+            const assigned: any = await apiService.getDriverProfile(
+              rideState.bookingDetails.driverId.toString()
+            );
+            if (assigned) {
+              const driverLocation = drivers.find((d) => d.id === assigned.id);
+              const driverData: DriverInfo = {
+                id: assigned.id,
+                name: assigned.name || 'Unnamed Driver',
+                rating: assigned.rating || 0,
+                plate: assigned.vehicle_plate || 'No Plate',
+                avatar:
+                  assigned.avatar_url ||
+                  'https://example.com/default-avatar.png',
+                location: driverLocation
+                  ? {
+                      latitude: driverLocation.lat,
+                      longitude: driverLocation.lng,
+                    }
+                  : undefined,
+              };
+              setAssignedDriver(driverData);
+              setCurrentDriver(driverData);
+            }
+          }
+
+          // Generate route using Mapbox
+          const route = await mapboxService.getDirections(
+            {
+              latitude: pickupCoords.latitude,
+              longitude: pickupCoords.longitude,
+            },
+            {
+              latitude: dropoffCoords.latitude,
+              longitude: dropoffCoords.longitude,
+            }
+          );
+
+          if (route) {
+            // Convert route coordinates to polyline format for MapComponent
+            const coordinates = route.coordinates
+              .map((coord) => `${coord.latitude},${coord.longitude}`)
+              .join('|');
+            setRoutePolyline(coordinates);
+          }
+        } catch (error) {
+          Alert.alert(
+            'Map Error',
+            'Could not load map data. Please try again.'
+          );
+          console.error('Error fetching map data:', error);
+          console.log(error);
+        }
       }
+      // If pickup/dropoff are not set, allow the user to select them on the map
     };
 
     fetchMapData();
   }, [pickupCoords, dropoffCoords, rideState.bookingDetails.driverId]);
-
-  useEffect(() => {
-    if (rideState.status === 'booking_map') {
-      setAvailableRides(DUMMY_AVAILABLE_RIDES);
-      setRideStatus('searching');
-    }
-  }, [rideState.status]);
 
   useEffect(() => {
     if (rideState.status === 'arrived') {
@@ -241,6 +339,139 @@ export default function MapScreen() {
     handleCompleteRide();
   };
 
+  // Handle map tap to select pickup/dropoff locations
+  const handleMapTap = async (event: any) => {
+    console.log('Map tap event received:', event); // Debug log
+    console.log('isSelectingLocation:', isSelectingLocation); // Debug log
+
+    if (!isSelectingLocation) {
+      console.log('No location selection mode active'); // Debug log
+      return;
+    }
+
+    console.log('Processing map tap for:', isSelectingLocation); // Debug log
+
+    // Handle different possible event structures
+    let latitude, longitude;
+
+    if (event.geometry?.coordinates) {
+      // Mapbox format: [longitude, latitude]
+      [longitude, latitude] = event.geometry.coordinates;
+      console.log('Using geometry.coordinates:', { longitude, latitude }); // Debug log
+    } else if (event.coordinates) {
+      // Alternative format
+      [longitude, latitude] = event.coordinates;
+      console.log('Using coordinates:', { longitude, latitude }); // Debug log
+    } else if (event.latitude && event.longitude) {
+      // Direct coordinate format
+      latitude = event.latitude;
+      longitude = event.longitude;
+      console.log('Using direct coordinates:', { latitude, longitude }); // Debug log
+    } else {
+      console.error('Unknown event structure:', event);
+      Alert.alert('Error', 'Could not determine tap location.');
+      return;
+    }
+
+    console.log('Final coordinates:', { latitude, longitude }); // Debug log
+
+    const location = { latitude, longitude };
+
+    try {
+      // Reverse geocode to get address
+      const address = await mapboxService.reverseGeocode(latitude, longitude);
+      console.log('Reverse geocoded address:', address); // Debug log
+
+      if (isSelectingLocation === 'pickup') {
+        console.log('Setting pickup location'); // Debug log
+        setSelectedPickup(location);
+        updateBookingDetails({
+          pickup: {
+            description: address || 'Selected pickup location',
+            coords: { lat: latitude, lng: longitude },
+          },
+        });
+      } else {
+        console.log('Setting dropoff location'); // Debug log
+        setSelectedDropoff(location);
+        updateBookingDetails({
+          dropoff: {
+            description: address || 'Selected dropoff location',
+            coords: { lat: latitude, lng: longitude },
+          },
+        });
+      }
+
+      setIsSelectingLocation(null);
+      console.log('Location selection completed'); // Debug log
+    } catch (error) {
+      console.error('Error reverse geocoding:', error);
+      Alert.alert('Error', 'Could not get address for selected location.');
+    }
+  };
+
+  // Start location selection mode
+  const startLocationSelection = (type: 'pickup' | 'dropoff') => {
+    setIsSelectingLocation(type);
+  };
+
+  // Confirm booking with selected locations
+  const confirmBooking = async () => {
+    console.log('Confirm booking called'); // Debug log
+    console.log('Selected pickup:', selectedPickup); // Debug log
+    console.log('Selected dropoff:', selectedDropoff); // Debug log
+    console.log('Current booking details:', rideState.bookingDetails); // Debug log
+
+    if (!selectedPickup || !selectedDropoff) {
+      Alert.alert('Error', 'Please select both pickup and dropoff locations.');
+      return;
+    }
+
+    try {
+      // Calculate route and fare
+      const route = await mapboxService.getDirections(
+        selectedPickup,
+        selectedDropoff
+      );
+      if (route) {
+        const distance = route.distance / 1000; // Convert to km
+        const duration = route.duration / 60; // Convert to minutes
+        const estimatedFare = Math.max(1000, distance * 500 + duration * 50); // Basic fare calculation
+
+        console.log(
+          'Route calculated - distance:',
+          distance,
+          'duration:',
+          duration
+        ); // Debug log
+
+        // Update booking details while preserving existing pickup and dropoff info
+        const updatedDetails = {
+          // Preserve existing pickup and dropoff details
+          pickup: rideState.bookingDetails.pickup,
+          dropoff: rideState.bookingDetails.dropoff,
+          // Add new calculated values
+          distance: distance,
+          duration: duration,
+          fare: estimatedFare,
+          polyline: route.coordinates
+            .map((coord) => `${coord.latitude},${coord.longitude}`)
+            .join('|'),
+        };
+
+        console.log('Updating booking details with:', updatedDetails); // Debug log
+        updateBookingDetails(updatedDetails);
+
+        console.log('Booking details updated, navigating to fare estimate'); // Debug log
+        // Navigate to fare estimate screen
+        router.push('/Ride/fareEstimate');
+      }
+    } catch (error) {
+      console.error('Error calculating route:', error);
+      Alert.alert('Error', 'Could not calculate route. Please try again.');
+    }
+  };
+
   const renderOverlay = () => {
     if (!showOverlay) return null;
     return (
@@ -251,16 +482,80 @@ export default function MapScreen() {
   };
 
   const renderBottomContent = () => {
+    console.log('Current ride status:', rideState.status); // Debug log
+
     switch (rideState.status) {
       case 'booking_map':
         return (
           <View style={styles.bottomPanel}>
-            <TouchableOpacity
-              style={styles.hailRideButton}
-              onPress={handleHailRide}
-            >
-              <Text style={styles.hailRideText}>Hail ride</Text>
-            </TouchableOpacity>
+            {/* Location Selection UI */}
+            <View style={styles.locationSelectionContainer}>
+              <Text style={styles.locationSelectionTitle}>
+                Select your locations
+              </Text>
+
+              {/* Pickup Location */}
+              <TouchableOpacity
+                style={[
+                  styles.locationButton,
+                  isSelectingLocation === 'pickup' &&
+                    styles.locationButtonActive,
+                ]}
+                onPress={() => startLocationSelection('pickup')}
+              >
+                <MapPin size={20} color={Colors.primary.default} />
+                <View style={styles.locationTextContainer}>
+                  <Text style={styles.locationLabel}>Pickup</Text>
+                  <Text style={styles.locationAddress}>
+                    {selectedPickup
+                      ? 'Location selected'
+                      : 'Tap to select pickup'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Dropoff Location */}
+              <TouchableOpacity
+                style={[
+                  styles.locationButton,
+                  isSelectingLocation === 'dropoff' &&
+                    styles.locationButtonActive,
+                ]}
+                onPress={() => startLocationSelection('dropoff')}
+              >
+                <MapPin size={20} color={Colors.secondary.default} />
+                <View style={styles.locationTextContainer}>
+                  <Text style={styles.locationLabel}>Dropoff</Text>
+                  <Text style={styles.locationAddress}>
+                    {selectedDropoff
+                      ? 'Location selected'
+                      : 'Tap to select dropoff'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Confirm Button */}
+              {selectedPickup && selectedDropoff && (
+                <Button
+                  title="Confirm Booking"
+                  onPress={confirmBooking}
+                  style={styles.confirmButton}
+                />
+              )}
+            </View>
+          </View>
+        );
+
+      case 'idle':
+        // Fallback UI for when status is still idle
+        return (
+          <View style={styles.bottomPanel}>
+            <View style={styles.locationSelectionContainer}>
+              <Text style={styles.locationSelectionTitle}>
+                Select your locations
+              </Text>
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
           </View>
         );
 
@@ -485,13 +780,15 @@ export default function MapScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <MapComponent
-        userLocation={pickupCoords}
+        userLocation={userLocation || pickupCoords}
         destination={dropoffCoords}
-        nearbyDrivers={nearbyDrivers.filter((driver) =>
-          isValidCoordinate(driver.location)
-        )}
+        nearbyDrivers={nearbyDrivers}
         assignedDriver={assignedDriver}
         routePolyline={routePolyline}
+        selectedPickup={selectedPickup}
+        selectedDropoff={selectedDropoff}
+        onMapTap={handleMapTap}
+        isSelectingLocation={isSelectingLocation}
       />
 
       <View style={styles.topBar}>
@@ -552,6 +849,21 @@ export default function MapScreen() {
 
       {renderOverlay()}
       {renderBottomContent()}
+
+      {/* Location Selection Indicator */}
+      {isSelectingLocation && (
+        <View style={styles.locationSelectionIndicator}>
+          <Text style={styles.locationSelectionText}>
+            Tap on the map to select {isSelectingLocation} location
+          </Text>
+          <TouchableOpacity
+            style={styles.cancelSelectionButton}
+            onPress={() => setIsSelectingLocation(null)}
+          >
+            <Text style={styles.cancelSelectionText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -634,17 +946,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: Layout.spacing.xl,
     alignItems: 'center',
   },
-  hailRideButton: {
-    backgroundColor: Colors.primary.default,
-    paddingVertical: Layout.spacing.m,
-    paddingHorizontal: Layout.spacing.xl,
-    borderRadius: Layout.borderRadius.l,
-    marginBottom: Layout.spacing.m,
+  locationSelectionContainer: {
+    width: '100%',
+    alignItems: 'center',
   },
-  hailRideText: {
-    color: Colors.neutral.black,
+  locationSelectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    color: Colors.neutral.white,
+    marginBottom: Layout.spacing.m,
+  },
+  locationButton: {
+    backgroundColor: Colors.neutral.white,
+    borderRadius: Layout.borderRadius.m,
+    padding: Layout.spacing.m,
+    marginBottom: Layout.spacing.m,
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '80%',
+  },
+  locationButtonActive: {
+    backgroundColor: Colors.primary.default,
+  },
+  locationTextContainer: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: Colors.secondary.default,
+  },
+  locationAddress: {
+    fontSize: 14,
+    color: Colors.neutral.dark,
+  },
+  confirmButton: {
+    width: '100%',
+    marginTop: Layout.spacing.m,
   },
   scanningText: {
     color: Colors.neutral.white,
@@ -746,5 +1084,41 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     textAlign: 'center',
+  },
+  locationSelectionIndicator: {
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: Layout.borderRadius.m,
+    padding: Layout.spacing.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 3,
+  },
+  locationSelectionText: {
+    color: Colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  cancelSelectionButton: {
+    backgroundColor: Colors.error.default,
+    paddingVertical: Layout.spacing.s,
+    paddingHorizontal: Layout.spacing.m,
+    borderRadius: Layout.borderRadius.m,
+    marginTop: Layout.spacing.m,
+  },
+  cancelSelectionText: {
+    color: Colors.neutral.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loadingText: {
+    color: Colors.neutral.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+    paddingVertical: Layout.spacing.m,
   },
 });

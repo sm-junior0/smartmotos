@@ -223,35 +223,81 @@ class RideService {
   public async requestRide(
     riderId: string,
     pickup: Location,
-    destination: Location
+    destination: Location,
+    paymentMethod: string = 'cash',
+    bargainAmount?: number
   ): Promise<Ride> {
-    const route = await MockGoogleServices.calculateRoute(pickup, destination);
-    const fare = await this.calculateFare(pickup, destination);
+    try {
+      // Prepare payload for backend
+      const payload: any = {
+        pickup_location: { lat: pickup.latitude, lng: pickup.longitude },
+        dropoff_location: { lat: destination.latitude, lng: destination.longitude },
+        payment_method: paymentMethod,
+      };
+      if (bargainAmount !== undefined) {
+        payload.bargain_amount = bargainAmount;
+      }
 
-    const ride: Ride = {
-      id: Math.random().toString(36).substr(2, 9),
-      riderId,
-      pickup,
-      destination,
-      status: 'requested',
-      fare,
-      distance: route.distance,
-      duration: route.duration,
-      createdAt: new Date()
-    };
+      const response = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Optionally add auth header if needed
+        },
+        body: JSON.stringify(payload),
+      });
 
-    this.activeRides.set(ride.id, ride);
-    
-    // Get and broadcast nearby drivers to rider
-    const nearbyDrivers = await this.getNearbyDrivers(pickup);
-    this.sendMessage({
-      type: 'rider_notification',
-      riderId,
-      notificationType: 'nearby_drivers',
-      data: nearbyDrivers
-    });
-    
-    return ride;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to book ride');
+      }
+      const data = await response.json();
+
+      // Construct Ride object from backend response
+      const ride: Ride = {
+        id: data.booking_id ? data.booking_id.toString() : Math.random().toString(36).substr(2, 9),
+        riderId,
+        pickup,
+        destination,
+        status: data.status || 'requested',
+        fare: data.fare || 0,
+        distance: 0, // Optionally update if backend returns
+        duration: 0, // Optionally update if backend returns
+        createdAt: new Date(),
+        bargainAmount: data.bargain_amount,
+        subTotal: data.sub_total,
+        appFee: data.app_fee,
+      };
+
+      this.activeRides.set(ride.id, ride);
+      return ride;
+    } catch (error) {
+      // fallback to mock if backend fails
+      console.error('[RideService] Backend booking failed, falling back to mock:', error);
+      const route = await MockGoogleServices.calculateRoute(pickup, destination);
+      const fare = await this.calculateFare(pickup, destination);
+      const ride: Ride = {
+        id: Math.random().toString(36).substr(2, 9),
+        riderId,
+        pickup,
+        destination,
+        status: 'requested',
+        fare,
+        distance: route.distance,
+        duration: route.duration,
+        createdAt: new Date()
+      };
+      this.activeRides.set(ride.id, ride);
+      // Get and broadcast nearby drivers to rider
+      const nearbyDrivers = await this.getNearbyDrivers(pickup);
+      this.sendMessage({
+        type: 'rider_notification',
+        riderId,
+        notificationType: 'nearby_drivers',
+        data: nearbyDrivers
+      });
+      return ride;
+    }
   }
 
   // Handle rider selecting a specific driver

@@ -1,4 +1,4 @@
-package com.anonymous.smartmotosapp
+package com.nihonor.smartmotosapp
 
 import android.app.Application
 import android.content.res.Configuration

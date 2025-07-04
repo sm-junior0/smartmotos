@@ -191,7 +191,11 @@ class NotificationService {
     title: string,
     message: string,
     type: Notification['type']
-  ): Promise<Notification> {
+  ): Promise<Notification | void> {
+    if (userId === undefined || userId === null) {
+      console.warn('sendNotification: userId is undefined or null, skipping notification.', userId);
+      return;
+    }
     const notification = await apiService.sendNotification(userId, userType, title, message, type);
     this.sendMessage('new_notification', { notification });
     return notification;
@@ -263,6 +267,10 @@ class NotificationService {
     status: string,
     details: string
   ): Promise<void> {
+    if (userId === undefined || userId === null) {
+      console.warn('sendBookingNotification: userId is undefined or null, skipping notification.', userId);
+      return;
+    }
     await this.sendNotification(
       userId,
       userType,

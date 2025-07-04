@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,12 +11,13 @@ import { router } from 'expo-router';
 import { useRide } from '../../hooks/useRideContext';
 import { useAuth } from '../../hooks/AuthContext';
 import { Ride, RideStatus } from '../../types';
-import { API_URL } from '../../config';
+import { API_URL, WS_URL } from '../../config';
 import { getAuthToken } from '../../services/auth';
 import MapComponent from '../../components/common/MapComponent';
 import Button from '../../components/common/Button';
 
 export default function ActiveRideScreen() {
+  const wsRef = useRef<WebSocket | null>(null);
   const { rideState } = useRide();
   const { user } = useAuth();
   const [currentRide, setCurrentRide] = useState<Ride | null>(null);
@@ -27,6 +28,40 @@ export default function ActiveRideScreen() {
     // Initialize ride from context or fetch from API
     if (rideState.bookingDetails.bookingId) {
       fetchRideDetails(rideState.bookingDetails.bookingId);
+    }
+    // WebSocket connection for ride updates
+    const wsUrl = (typeof WS_URL === 'function' ? WS_URL() : WS_URL) || '';
+    if (wsUrl && rideState.bookingDetails.bookingId) {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      ws.onopen = () => {
+        // Optionally authenticate or subscribe to booking events
+        ws.send(JSON.stringify({
+          type: 'subscribe',
+          booking_id: rideState.bookingDetails.bookingId,
+          user_type: 'passenger',
+        }));
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'ride_update' && data.status === 'completed') {
+            // Automatically navigate to payment screen
+            router.replace({ pathname: '/Ride/payment', params: { bookingId: rideState.bookingDetails.bookingId }});
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      };
+      ws.onerror = (e) => {
+        // Optionally handle errors
+      };
+      ws.onclose = () => {
+        wsRef.current = null;
+      };
+      return () => {
+        ws.close();
+      };
     }
   }, []);
 

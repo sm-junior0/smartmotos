@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   ScrollView,
 } from 'react-native';
+import { StripeProvider, useStripe } from '@stripe/stripe-react-native';
 import { router } from 'expo-router';
 import { useRide } from '../../hooks/useRideContext';
 import { useAuth } from '../../hooks/AuthContext';
@@ -23,6 +24,7 @@ const PAYMENT_METHODS = [
 ];
 
 export default function PaymentScreen() {
+  const stripe = useStripe();
   const { rideState } = useRide();
   const { user } = useAuth();
   const [currentRide, setCurrentRide] = useState<Ride | null>(null);
@@ -83,6 +85,102 @@ export default function PaymentScreen() {
       return;
     }
 
+    // Stripe integration for card payments
+    if (selectedPaymentMethod === 'card') {
+      setLoading(true);
+      try {
+        // Get publishable key from config (or .env)
+        const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY;
+        if (!STRIPE_PUBLISHABLE_KEY) {
+          Alert.alert('Stripe Error', 'Stripe publishable key not configured.');
+          setLoading(false);
+          return;
+        }
+
+        // Create payment intent on backend
+        const paymentIntentRes = await fetch(`${API_URL}/bookings/${currentRide?.id}/create-payment-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${await getAuthToken()}`,
+          },
+          body: JSON.stringify({
+            amount: Math.round((currentRide?.fare || 0) * 104), // e.g. cents
+          }),
+        });
+
+        const paymentIntent = await paymentIntentRes.json();
+        if (!paymentIntent.clientSecret) {
+          Alert.alert('Stripe Error', paymentIntent.error || 'Failed to create payment intent');
+          setLoading(false);
+          return;
+        }
+
+        // Present PaymentSheet
+        const initSheet = await stripe.initPaymentSheet({
+          paymentIntentClientSecret: paymentIntent.clientSecret,
+        });
+        if (initSheet.error) {
+          Alert.alert('Stripe Error', initSheet.error.message);
+          setLoading(false);
+          return;
+        }
+        const presentSheet = await stripe.presentPaymentSheet();
+        if (presentSheet.error) {
+          Alert.alert('Payment Failed', presentSheet.error.message);
+          setLoading(false);
+          return;
+        }
+
+        // Confirm payment on backend
+        const confirmRes = await fetch(
+          `${API_URL}/bookings/${currentRide?.id}/pay`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${await getAuthToken()}`,
+            },
+            body: JSON.stringify({
+              payment_method: selectedPaymentMethod,
+              amount: currentRide?.fare,
+              stripe_payment_intent: paymentIntent.id,
+            }),
+          }
+        );
+
+        if (confirmRes.ok) {
+          Alert.alert(
+            'Payment Successful',
+            'Your payment has been processed successfully!',
+            [
+              {
+                text: 'Rate Driver',
+                onPress: () => router.push('/Ride/rating'),
+              },
+              {
+                text: 'Done',
+                onPress: () => router.push('/(tabs)'),
+              },
+            ]
+          );
+        } else {
+          const errorData = await confirmRes.json();
+          Alert.alert(
+            'Payment Failed',
+            errorData.error || 'Payment processing failed'
+          );
+        }
+      } catch (error) {
+        console.error('[Stripe Payment] Error:', error);
+        Alert.alert('Error', 'Stripe payment failed');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Fallback for other payment methods
     setLoading(true);
     try {
       const response = await fetch(
@@ -132,6 +230,7 @@ export default function PaymentScreen() {
       setLoading(false);
     }
   };
+
 
   if (!currentRide) {
     return (

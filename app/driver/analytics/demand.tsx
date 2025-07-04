@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { useWindowDimensions } from 'react-native';
-import MapView, { Heatmap } from 'react-native-maps';
+import Mapbox from '@rnmapbox/maps';
 import {
   analyticsService,
   type DemandAnalytics,
@@ -11,7 +11,7 @@ import {
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
-import { DEFAULT_LOCATION } from '@/config';
+import { MAPBOX_CONFIG } from '@/config/mapbox';
 
 export default function DemandAnalytics() {
   const { width } = useWindowDimensions();
@@ -20,6 +20,8 @@ export default function DemandAnalytics() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initialize Mapbox
+    Mapbox.setAccessToken(MAPBOX_CONFIG.ACCESS_TOKEN);
     loadAnalytics();
   }, [period]);
 
@@ -67,19 +69,19 @@ export default function DemandAnalytics() {
         <View style={styles.periodSelector}>
           <Button
             title="Today"
-            variant={period === 'day' ? 'solid' : 'outline'}
+            variant={period === 'day' ? 'primary' : 'outline'}
             onPress={() => setPeriod('day')}
             style={styles.periodButton}
           />
           <Button
             title="Week"
-            variant={period === 'week' ? 'solid' : 'outline'}
+            variant={period === 'week' ? 'primary' : 'outline'}
             onPress={() => setPeriod('week')}
             style={styles.periodButton}
           />
           <Button
             title="Month"
-            variant={period === 'month' ? 'solid' : 'outline'}
+            variant={period === 'month' ? 'primary' : 'outline'}
             onPress={() => setPeriod('month')}
             style={styles.periodButton}
           />
@@ -88,25 +90,29 @@ export default function DemandAnalytics() {
 
       <View style={styles.mapContainer}>
         <Text style={styles.sectionTitle}>Demand Heatmap</Text>
-        <MapView
-          style={styles.map}
-          initialRegion={DEFAULT_LOCATION}
-          provider="google"
-        >
-          <Heatmap
-            points={heatmapData}
-            radius={50}
-            opacity={0.7}
-            gradient={{
-              colors: [
-                Colors.primary.light,
-                Colors.primary.default,
-                Colors.error.default,
-              ],
-              startPoints: [0.2, 0.5, 1],
-            }}
-          />
-        </MapView>
+        <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Dark}>
+          {heatmapData.map((point, index) => (
+            <Mapbox.PointAnnotation
+              key={`demand-${index}`}
+              id={`demand-${index.toString()}`}
+              coordinate={[point.lng, point.lat]}
+            >
+              <View
+                style={[
+                  styles.demandPoint,
+                  {
+                    backgroundColor:
+                      point.weight > 0.7
+                        ? Colors.error.default
+                        : point.weight > 0.4
+                        ? Colors.primary.default
+                        : Colors.primary.light,
+                  },
+                ]}
+              />
+            </Mapbox.PointAnnotation>
+          ))}
+        </Mapbox.MapView>
       </View>
 
       <View style={styles.chartContainer}>
@@ -116,6 +122,7 @@ export default function DemandAnalytics() {
           width={width - 32}
           height={220}
           yAxisLabel=""
+          yAxisSuffix=""
           chartConfig={{
             backgroundColor: Colors.neutral.white,
             backgroundGradientFrom: Colors.neutral.white,
@@ -242,5 +249,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.primary.default,
+  },
+  demandPoint: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginTop: -10,
+    marginLeft: -10,
   },
 });

@@ -12,6 +12,8 @@ import Button from '@/components/common/Button';
 import InputField from '@/components/common/InputField';
 import SocialButtons from '@/components/common/SocialButtons';
 import { driverOnboarding } from '@/services/auth';
+import CameraCapture from '../../../components/common/CameraCapture';
+import { Image } from 'react-native';
 
 export default function DriverSignupScreen() {
   const [fullName, setFullName] = useState('');
@@ -35,6 +37,8 @@ export default function DriverSignupScreen() {
   );
   const [vehicleType, setVehicleType] = useState<'bike' | 'car'>('bike');
   const [licenseNumber, setLicenseNumber] = useState('');
+  const [licenseImage, setLicenseImage] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
 
   const validateForm = () => {
     let valid = true;
@@ -95,6 +99,10 @@ export default function DriverSignupScreen() {
       newErrors.licenseNumber = 'License number is required';
       valid = false;
     }
+    if (!licenseImage) {
+      alert('A clear photo of your license is required.');
+      valid = false;
+    }
 
     setErrors(newErrors);
     return valid;
@@ -109,15 +117,25 @@ export default function DriverSignupScreen() {
       ? phoneNumber
       : `+${phoneNumber}`;
 
-    const result = await driverOnboarding({
-      name: fullName.trim(),
-      phone: formattedPhone,
-      service_provider: serviceProvider,
-      vehicle_type: vehicleType,
-      license_number: licenseNumber,
-      password,
-      confirm_password: confirmPassword,
-    });
+    // Prepare form data for image upload
+    let formData = new FormData();
+    formData.append('name', fullName.trim());
+    formData.append('phone', formattedPhone);
+    formData.append('service_provider', serviceProvider);
+    formData.append('vehicle_type', vehicleType);
+    formData.append('license_number', licenseNumber);
+    formData.append('password', password);
+    formData.append('confirm_password', confirmPassword);
+    if (licenseImage) {
+      formData.append('license_image', {
+        uri: licenseImage,
+        name: 'license.jpg',
+        type: 'image/jpeg',
+      } as any);
+    }
+
+    // NOTE: driverOnboarding may need to be updated to accept FormData for image upload, or use a separate upload endpoint.
+    const result = await driverOnboarding(formData);
 
     setLoading(false);
 
@@ -270,12 +288,48 @@ export default function DriverSignupScreen() {
             error={errors.licenseNumber}
           />
 
+          {/* License Image Capture Step */}
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ marginBottom: 6, color: colors.text.secondary }}>
+              License Photo (Required)
+            </Text>
+            {licenseImage ? (
+              <View style={{ alignItems: 'center' }}>
+                <Image source={{ uri: licenseImage }} style={{ width: 220, height: 120, borderRadius: 8, marginBottom: 8 }} />
+                <Button
+                  text="Retake Photo"
+                  onPress={() => setShowCamera(true)}
+                  style={{ marginBottom: 6 }}
+                  fullWidth
+                />
+              </View>
+            ) : (
+              <Button
+                text="Take Photo of License"
+                onPress={() => setShowCamera(true)}
+                fullWidth
+                style={{ marginBottom: 6 }}
+              />
+            )}
+          </View>
+
+          {showCamera && (
+            <CameraCapture
+              onCapture={(uri: string) => {
+                setLicenseImage(uri);
+                setShowCamera(false);
+              }}
+              onCancel={() => setShowCamera(false)}
+            />
+          )}
+
           <Button
             text="Sign Up"
             onPress={handleSignup}
             loading={loading}
             fullWidth
             style={styles.signupButton}
+            disabled={!licenseImage}
           />
         </View>
 

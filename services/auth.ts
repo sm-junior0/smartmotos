@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store'
 import { notificationService } from './notification';
 
-const API_URL = 'http://10.11.75.249:5000/api';
+const API_URL = 'http://192.168.8.100:5000/api';
 
 interface LoginResponse {
   token: string;
@@ -112,9 +112,12 @@ export const login = async (phone: string, password: string): Promise<ApiRespons
       await SecureStore.setItemAsync('userData', JSON.stringify(data.passenger));
       
       // Initialize WebSocket connection with user context
-      notificationService.setUserContext(data.passenger.id.toString(), 'passenger');
-      notificationService.initialize();
-      
+      if (data.passenger && data.passenger.id !== undefined && data.passenger.id !== null) {
+        notificationService.setUserContext(data.passenger.id.toString(), 'passenger');
+        notificationService.initialize();
+      } else {
+        console.warn('Login: passenger.id is undefined or null, skipping WebSocket setup. Value:', data.passenger?.id);
+      }
       return {
         success: true,
         data: data,

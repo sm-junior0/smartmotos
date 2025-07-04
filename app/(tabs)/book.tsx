@@ -1,11 +1,20 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ScrollView, SafeAreaView, Image } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  SafeAreaView,
+  Image,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { MapPin, Map, List, ArrowRight } from 'lucide-react-native';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import Button from '@/components/UI/Button';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRide } from '@/hooks/useRideContext';
 
 const POPULAR_DESTINATIONS = [
   'African Leadership University',
@@ -17,10 +26,24 @@ const POPULAR_DESTINATIONS = [
 export default function BookScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setRideStatus } = useRide();
+
+  const handleBookByMap = () => {
+    setRideStatus('booking_map');
+    router.push('/Ride/map');
+  };
+
+  const handleBookByForm = () => {
+    setRideStatus('booking_form');
+    router.push('/Ride/book');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
+      >
         {/* Hero Section */}
         <View style={styles.heroSection}>
           <Text style={styles.welcomeText}>Welcome to SmartMotos</Text>
@@ -29,9 +52,9 @@ export default function BookScreen() {
 
         {/* Booking Options */}
         <View style={styles.bookingOptions}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.bookingCard, styles.mapCard]}
-            onPress={() => router.push('/Ride/map')}
+            onPress={handleBookByMap}
           >
             <View style={styles.cardContent}>
               <View style={[styles.iconContainer, styles.mapIconContainer]}>
@@ -47,9 +70,9 @@ export default function BookScreen() {
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.bookingCard, styles.formCard]}
-            onPress={() => router.push('/Ride/book')}
+            onPress={handleBookByForm}
           >
             <View style={styles.cardContent}>
               <View style={[styles.iconContainer, styles.formIconContainer]}>
@@ -74,7 +97,7 @@ export default function BookScreen() {
               <TouchableOpacity
                 key={index}
                 style={styles.destinationItem}
-                onPress={() => router.push('/Ride/map')}
+                onPress={handleBookByMap}
               >
                 <View style={styles.destinationIcon}>
                   <MapPin size={20} color={Colors.primary.default} />

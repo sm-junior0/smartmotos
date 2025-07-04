@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,18 +6,29 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
-import Input from '@/components/UI/Input';
 import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import { MapPin } from 'lucide-react-native';
-import { mockGoogleServices, Place } from '@/services/mockGoogleServices';
+import * as Location from 'expo-location';
+import MapboxService from '@/services/mapboxService';
+
+interface Place {
+  id: string;
+  name: string;
+  address: string;
+  location: { lat: number; lng: number };
+}
 
 interface LocationPickerProps {
   label: string;
   placeholder: string;
   value: string;
-  onLocationSelect: (location: string, coordinates: { lat: number; lng: number }) => void;
+  onLocationSelect: (
+    location: string,
+    coordinates: { lat: number; lng: number }
+  ) => void;
   style?: any;
   labelStyle?: any;
 }
@@ -34,34 +45,125 @@ export function LocationPicker({
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const mapboxService = MapboxService.getInstance();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setSearchText(value);
   }, [value]);
 
   const handleSearch = async (text: string) => {
+    console.log('Search text:', text); // Debug log
     setSearchText(text);
-    if (text.length < 3) {
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (text.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
 
-    try {
-      setLoading(true);
-      setShowSuggestions(true);
+    // Debounce the search to avoid too many API calls
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setLoading(true);
+        setShowSuggestions(true);
 
-      const places = await mockGoogleServices.searchPlaces(text);
-      setSuggestions(places);
-    } catch (error) {
-      console.error('Error searching places:', error);
-      setSuggestions([]);
-    } finally {
-      setLoading(false);
-    }
+        // Use Mapbox Geocoding API v6 for better geocoding results
+        const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(
+          text
+        )}&access_token=pk.eyJ1IjoiYXBjZ3JvdXAiLCJhIjoiY21jYWxwMHg0MDFiMTJqb2hvcHZjNWQybyJ9.coH8byyRAVaXgudojB5xiw&language=en&limit=10&country=RW`;
+
+        console.log('Making API request to:', url); // Debug log
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        console.log('Response status:', response.status); // Debug log
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('API response:', data); // Debug log
+
+        if (!data.features) {
+          throw new Error('Invalid response format');
+        }
+
+        const places: Place[] = data.features.map(
+          (feature: any, index: number) => ({
+            id: feature.properties?.mapbox_id || feature.id || `place-${index}`,
+            name:
+              feature.properties?.name_preferred ||
+              feature.properties?.name ||
+              'Unknown location',
+            address:
+              feature.properties?.full_address ||
+              feature.properties?.place_formatted ||
+              'Unknown address',
+            location: {
+              lat:
+                feature.geometry?.coordinates[1] ||
+                feature.properties?.coordinates?.latitude,
+              lng:
+                feature.geometry?.coordinates[0] ||
+                feature.properties?.coordinates?.longitude,
+            },
+          })
+        );
+
+        console.log('Parsed places:', places); // Debug log
+        setSuggestions(places);
+      } catch (error) {
+        console.error('Error searching places:', error);
+
+        let errorMessage =
+          'Please check your internet connection and try again';
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            errorMessage = 'Request timed out. Please try again.';
+          } else if (error.message.includes('Network request failed')) {
+            errorMessage = 'No internet connection. Please check your network.';
+          }
+        }
+
+        // Show user-friendly error message
+        setSuggestions([
+          {
+            id: 'error',
+            name: 'Network error',
+            address: errorMessage,
+            location: { lat: 0, lng: 0 },
+          },
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300); // 300ms debounce
   };
 
   const handleSelectLocation = (place: Place) => {
+    // Don't process error items
+    if (place.id === 'error') {
+      return;
+    }
+
     setSearchText(place.name);
     setShowSuggestions(false);
     onLocationSelect(place.name, place.location);
@@ -70,11 +172,36 @@ export function LocationPicker({
   const handleUseCurrentLocation = async () => {
     try {
       setLoading(true);
-      const location = await mockGoogleServices.getCurrentLocation();
-      const places = await mockGoogleServices.searchPlaces('Current Location');
-      if (places.length > 0) {
-        handleSelectLocation(places[0]);
+
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.error('Location permission denied');
+        return;
       }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      // Reverse geocode to get address
+      const address = await mapboxService.reverseGeocode(
+        location.coords.latitude,
+        location.coords.longitude
+      );
+
+      const currentLocationPlace: Place = {
+        id: 'current-location',
+        name: 'Current Location',
+        address: address || 'Current Location',
+        location: {
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        },
+      };
+
+      handleSelectLocation(currentLocationPlace);
     } catch (error) {
       console.error('Error getting current location:', error);
     } finally {
@@ -87,7 +214,7 @@ export function LocationPicker({
     <View style={styles.container}>
       {label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
       <View style={styles.inputContainer}>
-        <Input
+        <TextInput
           value={searchText}
           onChangeText={handleSearch}
           placeholder={placeholder}
@@ -118,9 +245,7 @@ export function LocationPicker({
                 onPress={() => handleSelectLocation(place)}
               >
                 <Text style={styles.suggestionName}>{place.name}</Text>
-                <Text style={styles.suggestionAddress}>
-                  {place.address}
-                </Text>
+                <Text style={styles.suggestionAddress}>{place.address}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>

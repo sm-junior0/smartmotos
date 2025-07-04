@@ -20,11 +20,34 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-maps",
-      "expo-secure-store"
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsImpl": "mapbox",
+          "RNMapboxMapsDownloadToken": "sk.eyJ1IjoiYXBjZ3JvdXAiLCJhIjoiY21jZTFlOGQ5MGhzdjJtc2FzNm1uM3J5YSJ9.zN2GPvPyH4xT_PtlcRk7NA"
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "13cea3bb-2382-4cd1-8f84-147ce42dd019"
+      }
+    },
+    "android": {
+      "package": "com.nihonor.smartmotosapp"
     }
   }
 }

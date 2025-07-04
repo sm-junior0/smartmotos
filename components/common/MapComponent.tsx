@@ -1,8 +1,9 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import MapView, { Polyline, Marker, Region } from 'react-native-maps';
+import Mapbox from '@rnmapbox/maps';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { Location, MarkerData } from '../../types';
+import { MAPBOX_CONFIG } from '../../config/mapbox';
 
 interface MapComponentProps {
   routeCoordinates: Location[];
@@ -15,67 +16,73 @@ const MapComponent = ({
   currentLocation,
   markers,
 }: MapComponentProps) => {
+  React.useEffect(() => {
+    // Initialize Mapbox with access token
+    Mapbox.setAccessToken(MAPBOX_CONFIG.ACCESS_TOKEN);
+  }, []);
+
   return (
-    <MapView
-      style={styles.map}
-      initialRegion={{
-        latitude: currentLocation?.latitude || -1.944,
-        longitude: currentLocation?.longitude || 30.0618,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      }}
-    >
-      {/* Blue route line */}
-      <Polyline
-        coordinates={routeCoordinates}
-        strokeColor="#0066FF"
-        strokeWidth={5}
-      />
+    <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street}>
+      {/* Route line */}
+      {routeCoordinates.length > 0 && (
+        <Mapbox.ShapeSource
+          id="routeSource"
+          shape={{
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: routeCoordinates.map((coord) => [
+                coord.longitude,
+                coord.latitude,
+              ]),
+            },
+          }}
+        >
+          <Mapbox.LineLayer
+            id="routeLine"
+            style={{
+              lineColor: '#0066FF',
+              lineWidth: 5,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+        </Mapbox.ShapeSource>
+      )}
 
       {/* Driver marker */}
       {currentLocation && (
-        <Marker coordinate={currentLocation}>
+        <Mapbox.PointAnnotation
+          id="currentLocation"
+          coordinate={[currentLocation.longitude, currentLocation.latitude]}
+        >
           <View style={styles.motorcycleMarker}>
             <FontAwesome name="motorcycle" size={20} color="#000" />
           </View>
-        </Marker>
+        </Mapbox.PointAnnotation>
       )}
 
       {/* Custom markers passed as prop */}
       {markers &&
         markers.map((marker) => (
-          <Marker
+          <Mapbox.PointAnnotation
             key={marker.id}
-            coordinate={marker.coordinate}
+            id={marker.id}
+            coordinate={[
+              marker.coordinate.longitude,
+              marker.coordinate.latitude,
+            ]}
             title={marker.title}
-            description={marker.description}
-            onPress={marker.onPress}
+            snippet={marker.description}
+            onSelected={marker.onPress}
           >
             <View style={styles.locationMarker}>
               <Ionicons name="location" size={24} color="#00BCD4" />
             </View>
-          </Marker>
+          </Mapbox.PointAnnotation>
         ))}
-
-      {/* Remove old hardcoded markers */}
-      {/*
-      <Marker
-        coordinate={routeCoordinates[1]}
-      >
-        <View style={styles.motorcycleMarker}>
-          <FontAwesome name="motorcycle" size={20} color="#000" />
-        </View>
-      </Marker>
-      
-      <Marker
-        coordinate={routeCoordinates[3]}
-      >
-        <View style={styles.locationMarker}>
-          <Ionicons name="location" size={24} color="#00BCD4" />
-        </View>
-      </Marker>
-      */}
-    </MapView>
+    </Mapbox.MapView>
   );
 };
 

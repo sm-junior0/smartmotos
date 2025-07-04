@@ -1,4 +1,4 @@
-package com.anonymous.smartmotosapp
+package com.nihonor.smartmotosapp
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

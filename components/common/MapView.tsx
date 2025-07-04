@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { colors } from '@/styles/theme';
-import RNMapView, { Marker } from 'react-native-maps';
+import Mapbox from '@rnmapbox/maps';
+import { MAPBOX_CONFIG } from '../../config/mapbox';
 
 interface MapViewProps {
   style?: object;
@@ -35,28 +36,42 @@ const MapView = ({
   initialRegion = defaultRegion,
   markers = [],
 }: MapViewProps) => {
+  React.useEffect(() => {
+    // Initialize Mapbox with access token
+    Mapbox.setAccessToken(MAPBOX_CONFIG.ACCESS_TOKEN);
+  }, []);
+
   return (
-    <RNMapView
+    <Mapbox.MapView
       style={[styles.container, style]}
-      provider={'google'}
-      initialRegion={initialRegion}
-      customMapStyle={mapStyle}
+      styleURL={Mapbox.StyleURL.Dark}
     >
       {markers.map((marker) => (
-        <Marker
+        <Mapbox.PointAnnotation
           key={marker.id}
-          coordinate={marker.coordinate}
+          id={marker.id}
+          coordinate={[marker.coordinate.longitude, marker.coordinate.latitude]}
           title={marker.title}
-          description={marker.description}
-        />
+          snippet={marker.description}
+        >
+          <View style={styles.marker} />
+        </Mapbox.PointAnnotation>
       ))}
-    </RNMapView>
+    </Mapbox.MapView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  marker: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#0066FF',
+    marginTop: -5,
+    marginLeft: -5,
   },
 });
 
