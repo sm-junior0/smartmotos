@@ -15,7 +15,8 @@ import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { resetPassword } from '@/services/auth';
+import { auth } from '../../firebase';
+import { PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
 import Button from '@/components/UI/Button';
 
 interface Styles {
@@ -32,9 +33,19 @@ interface Styles {
   submitBtn: ViewStyle;
 }
 
+// Add a function to confirm the code and get the ID token
+async function confirmCodeAndGetIdToken(verificationId: string, code: string) {
+  const credential = PhoneAuthProvider.credential(verificationId, code);
+  const userCredential = await signInWithCredential(auth, credential);
+  return userCredential.user.getIdToken();
+}
+
 export default function ResetPassword() {
   const router = useRouter();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  const { phone, verificationId } = useLocalSearchParams<{
+    phone: string;
+    verificationId: string;
+  }>();
   const [formData, setFormData] = useState({
     code: '',
     newPassword: '',
@@ -90,25 +101,38 @@ export default function ResetPassword() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     setLoading(true);
-    const result = await resetPassword(
-      phone || '',
-      formData.code,
-      formData.newPassword,
-      formData.confirmPassword
-    );
-    setLoading(false);
-
-    if (result.success) {
-      Alert.alert('Success', result.message, [
-        {
-          text: 'OK',
-          onPress: () => router.push('/Auth/Login'),
-        },
-      ]);
-    } else {
-      Alert.alert('Error', result.error || 'Failed to reset password');
+    try {
+      const idToken = await confirmCodeAndGetIdToken(
+        verificationId,
+        formData.code
+      );
+      // Send idToken to backend for password reset
+      const response = await fetch('/api/auth/password/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone,
+          id_token: idToken,
+          new_password: formData.newPassword,
+          confirm_password: formData.confirmPassword,
+        }),
+      });
+      const result = await response.json();
+      setLoading(false);
+      if (result.success || result.message === 'Password reset successful') {
+        Alert.alert('Success', result.message, [
+          {
+            text: 'OK',
+            onPress: () => router.push('/Auth/Login'),
+          },
+        ]);
+      } else {
+        Alert.alert('Error', result.error || 'Failed to reset password');
+      }
+    } catch (e) {
+      setLoading(false);
+      Alert.alert('Error', 'Failed to reset password');
     }
   };
 

@@ -34,15 +34,20 @@ export default function VerificationInput({
 
   const handleChangeText = (text: string, index: number) => {
     const newValue = value.split('');
-    
-    // Only allow single characters
     if (text.length > 0) {
       newValue[index] = text[text.length - 1];
       onChange(newValue.join(''));
-      
       // Auto focus to next input if available
-      if (index < length - 1 && text.length > 0) {
+      if (index < length - 1) {
         inputRefs.current[index + 1]?.focus();
+      }
+    } else {
+      // Handle deletion
+      newValue[index] = '';
+      onChange(newValue.join(''));
+      // Optionally, move focus to previous input
+      if (index > 0) {
+        inputRefs.current[index - 1]?.focus();
       }
     }
   };
@@ -68,7 +73,7 @@ export default function VerificationInput({
         {Array(length)
           .fill(0)
           .map((_, index) => (
-            <View 
+            <View
               key={index}
               style={[
                 styles.inputWrapper,

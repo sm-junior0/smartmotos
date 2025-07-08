@@ -47,6 +47,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "package": "com.nihonor.smartmotosapp"
     }
   }

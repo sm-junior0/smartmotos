@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -14,6 +14,9 @@ import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import SocialAuthButtons from '@/components/UI/SocialAuthButtons';
 import { signup } from '@/services/auth';
+import { auth } from '../firebase';
+import { signInWithPhoneNumber } from 'firebase/auth';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -33,6 +36,7 @@ export default function Signup() {
   });
 
   const [loading, setLoading] = useState(false);
+  const recaptchaVerifier = useRef(null);
 
   const updateFormData = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -119,20 +123,34 @@ export default function Signup() {
       confirm_password: formData.confirmPassword,
     });
 
-    setLoading(false);
-
     if (result.success) {
-      Alert.alert('Success', result.message, [
-        {
-          text: 'OK',
-          onPress: () =>
-            router.push({
-              pathname: '/Auth/Verification',
-              params: { phone: formData.phone },
-            }),
-        },
-      ]);
+      try {
+        // Trigger Firebase phone auth
+        const confirmationResult = await signInWithPhoneNumber(
+          auth,
+          formData.phone,
+          recaptchaVerifier.current
+        );
+        setLoading(false);
+        Alert.alert('Success', result.message, [
+          {
+            text: 'OK',
+            onPress: () =>
+              router.push({
+                pathname: '/Auth/Verification',
+                params: {
+                  phone: formData.phone,
+                  verificationId: confirmationResult.verificationId,
+                },
+              }),
+          },
+        ]);
+      } catch (e: any) {
+        setLoading(false);
+        Alert.alert('Error', e.message || 'Failed to send verification SMS');
+      }
     } else {
+      setLoading(false);
       Alert.alert('Error', result.error);
     }
   };
@@ -161,6 +179,10 @@ export default function Signup() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
     >
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
       <View style={styles.header}>
         <Text style={styles.title}>Create New Account</Text>
       </View>

@@ -1,24 +1,6 @@
 import * as SecureStore from 'expo-secure-store'
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-
-// Your Firebase config object (replace with your actual config)
-const firebaseConfig = {
-  apiKey: 'YOUR_API_KEY',
-  authDomain: 'YOUR_AUTH_DOMAIN',
-  projectId: 'YOUR_PROJECT_ID',
-  storageBucket: 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-  appId: 'YOUR_APP_ID',
-};
-
-// Initialize Firebase only if it hasn't been initialized yet
-if (!getApps().length) {
-  initializeApp(firebaseConfig);
-}
-
-const auth = getAuth();
-
+  
 const API_URL = 'http://192.168.8.100:5000/api';
 
 interface LoginResponse {

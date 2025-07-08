@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,10 @@ import Colors from '@/constants/Colors';
 import Layout from '@/constants/Layout';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-import { forgotPassword } from '@/services/auth';
+import { auth } from '../../firebase';
+import { PhoneAuthProvider, signInWithPhoneNumber } from 'firebase/auth';
 import Button from '@/components/UI/Button';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 interface Styles {
   container: ViewStyle;
@@ -35,6 +37,7 @@ export default function ForgotPassword() {
   const [phone, setPhone] = useState('+250');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const recaptchaVerifier = useRef(null);
 
   const handlePhoneChange = (value: string) => {
     if (value.startsWith('+250')) {
@@ -65,29 +68,45 @@ export default function ForgotPassword() {
 
   const handleSubmit = async () => {
     if (!validatePhone()) return;
-
     setLoading(true);
-    const result = await forgotPassword(phone);
-    setLoading(false);
-
-    if (result.success) {
-      Alert.alert('Success', result.message, [
+    console.log('Attempting to send SMS with phone:', phone);
+    try {
+      // Use Firebase Auth to send SMS with reCAPTCHA
+      console.log('recaptchaVerifier.current:', recaptchaVerifier.current);
+      const confirmationResult = await signInWithPhoneNumber(
+        auth,
+        phone,
+        recaptchaVerifier.current
+      );
+      setLoading(false);
+      console.log('SMS sent, confirmationResult:', confirmationResult);
+      Alert.alert('Success', 'Verification code sent', [
         {
           text: 'OK',
           onPress: () =>
             router.push({
               pathname: '/Account/Password/reset',
-              params: { phone },
+              params: {
+                phone,
+                verificationId: confirmationResult.verificationId,
+              },
             }),
         },
       ]);
-    } else {
-      setError(result.error || 'Failed to send verification code');
+    } catch (e: any) {
+      setLoading(false);
+      console.log('Error sending SMS:', e);
+      setError(e.message || 'Failed to send verification code');
+      Alert.alert('Error', e.message || 'Failed to send verification code');
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()}>
           <ChevronLeft color={Colors.primary.default} size={28} />

@@ -18,9 +18,16 @@ import Animated, {
   withRepeat,
 } from 'react-native-reanimated';
 import { verifyDriverPhone } from '@/services/auth';
+import { signInWithCredential, PhoneAuthProvider } from 'firebase/auth';
+import { auth } from '@/app/firebase';
+import { API_URL } from '@/config';
 
 export default function OtpVerificationScreen() {
-  const { phone } = useLocalSearchParams();
+  const { phone, verificationId } = useLocalSearchParams();
+  const verificationIdStr = Array.isArray(verificationId)
+    ? verificationId[0]
+    : verificationId;
+  const phoneStr = Array.isArray(phone) ? phone[0] : phone;
   const [otp, setOtp] = useState('');
   const [timeLeft, setTimeLeft] = useState(60);
   const [resendDisabled, setResendDisabled] = useState(true);
@@ -45,11 +52,11 @@ export default function OtpVerificationScreen() {
 
   // Validate phone number on mount
   useEffect(() => {
-    if (!phone) {
+    if (!phoneStr) {
       setError('Phone number is missing. Please go back and try again.');
       errorOpacity.value = withTiming(1, { duration: 300 });
     }
-  }, [phone]);
+  }, [phoneStr]);
 
   // Countdown timer for OTP resend
   useEffect(() => {
@@ -64,12 +71,16 @@ export default function OtpVerificationScreen() {
   }, [timeLeft]);
 
   const handleVerifyOtp = async () => {
-    if (!phone) {
+    if (!phoneStr) {
       setError('Phone number is missing. Please go back and try again.');
       errorOpacity.value = withTiming(1, { duration: 300 });
       return;
     }
-
+    if (!verificationIdStr) {
+      setError('Verification ID is missing.');
+      errorOpacity.value = withTiming(1, { duration: 300 });
+      return;
+    }
     if (otp.length !== 6) {
       setError('Please enter a valid 6-digit OTP');
       errorOpacity.value = withTiming(1, { duration: 300 });
@@ -79,16 +90,22 @@ export default function OtpVerificationScreen() {
       }, 500);
       return;
     }
-
     setError('');
     setLoading(true);
-
     try {
-      const result = await verifyDriverPhone(phone as string, otp);
+      // Confirm code with Firebase and get ID token
+      const credential = PhoneAuthProvider.credential(verificationIdStr, otp);
+      const userCredential = await signInWithCredential(auth, credential);
+      const idToken = await userCredential.user.getIdToken();
+      // Send ID token to backend for verification
+      const response = await fetch(`${API_URL}/driver/verify/phone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: idToken }),
+      });
+      const result = await response.json();
       setLoading(false);
-
-      if (result.success) {
-        // OTP verified, show success and go to driver login
+      if (result.success || result.message === 'Phone verified successfully') {
         router.replace('/driver/auth/login');
       } else {
         setError(result.error || 'Verification failed');
@@ -102,15 +119,15 @@ export default function OtpVerificationScreen() {
           shakeValue.value = withTiming(0);
         }, 500);
       }
-    } catch (err) {
+    } catch (err: any) {
       setLoading(false);
-      setError('Network error. Please try again.');
+      setError('Network or verification error. Please try again.');
       errorOpacity.value = withTiming(1, { duration: 300 });
     }
   };
 
   const handleResendOtp = () => {
-    if (!phone) {
+    if (!phoneStr) {
       setError('Phone number is missing. Please go back and try again.');
       errorOpacity.value = withTiming(1, { duration: 300 });
       return;
@@ -140,8 +157,8 @@ export default function OtpVerificationScreen() {
       <View style={styles.content}>
         <Text style={styles.headerTitle}>Verification</Text>
         <Text style={styles.headerSubtitle}>
-          {phone
-            ? `We've sent a verification code to ${phone}`
+          {phoneStr
+            ? `We've sent a verification code to ${phoneStr}`
             : 'Phone number is missing. Please go back and try again.'}
         </Text>
 

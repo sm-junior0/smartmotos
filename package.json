@@ -32,6 +32,7 @@
     "expo-checkbox": "~4.1.4",
     "expo-constants": "~17.1.6",
     "expo-dev-client": "~5.2.2",
+    "expo-firebase-recaptcha": "^2.3.1",
     "expo-font": "~13.3.1",
     "expo-haptics": "~14.1.4",
     "expo-linear-gradient": "~14.1.4",
