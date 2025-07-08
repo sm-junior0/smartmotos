@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "EXPO_NO_TELEMETRY=1 expo start",
-    "build:web": "expo export --platform web",
+    "dev": "node init && EXPO_NO_TELEMETRY=1 expo start",
+    "build:web": "node init && expo export --platform web",
     "lint": "expo lint",
     "android": "expo run:android",
     "ios": "expo run:ios"
@@ -32,6 +32,7 @@
     "expo-checkbox": "~4.1.4",
     "expo-constants": "~17.1.6",
     "expo-dev-client": "~5.2.2",
+    "expo-firebase-recaptcha": "^2.3.1",
     "expo-font": "~13.3.1",
     "expo-haptics": "~14.1.4",
     "expo-linear-gradient": "~14.1.4",

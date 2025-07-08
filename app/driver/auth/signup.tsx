@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { colors, typography, spacing } from '@/styles/theme';
@@ -14,6 +15,9 @@ import SocialButtons from '@/components/common/SocialButtons';
 import { driverOnboarding } from '@/services/auth';
 import CameraCapture from '../../../components/common/CameraCapture';
 import { Image } from 'react-native';
+import { signInWithPhoneNumber, ApplicationVerifier } from 'firebase/auth';
+import { auth } from '@/app/firebase';
+import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 
 export default function DriverSignupScreen() {
   const [fullName, setFullName] = useState('');
@@ -39,6 +43,7 @@ export default function DriverSignupScreen() {
   const [licenseNumber, setLicenseNumber] = useState('');
   const [licenseImage, setLicenseImage] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
 
   const validateForm = () => {
     let valid = true;
@@ -48,6 +53,9 @@ export default function DriverSignupScreen() {
       email: '',
       password: '',
       confirmPassword: '',
+      serviceProvider: '',
+      vehicleType: '',
+      licenseNumber: '',
     };
 
     // Full name validation
@@ -144,16 +152,38 @@ export default function DriverSignupScreen() {
 
     const result = await driverOnboarding(formData);
 
-    setLoading(false);
-
     if (result.success) {
-      router.replace({
-        pathname: '/driver/auth/otp-verification',
-        params: { phone: formattedPhone },
-      });
+      try {
+        console.log('Attempting to send SMS with phone:', formattedPhone);
+        console.log('recaptchaVerifier.current:', recaptchaVerifier.current);
+        const confirmationResult = await signInWithPhoneNumber(
+          auth,
+          formattedPhone,
+          recaptchaVerifier.current as unknown as ApplicationVerifier
+        );
+        console.log('SMS sent, confirmationResult:', confirmationResult);
+        Alert.alert('Success', 'Verification code sent', [
+          {
+            text: 'OK',
+            onPress: () =>
+              router.push({
+                pathname: '/driver/auth/otp-verification',
+                params: {
+                  phone: formattedPhone,
+                  verificationId: confirmationResult.verificationId,
+                },
+              }),
+          },
+        ]);
+      } catch (e: any) {
+        console.log('Error sending SMS:', e);
+        Alert.alert('Error', e.message || 'Failed to send verification SMS');
+      }
     } else {
-      alert(result.message || result.error || 'Signup failed');
+      Alert.alert('Error', result.error);
     }
+
+    setLoading(false);
   };
 
   const handleSocialSignup = (provider: string) => {
@@ -167,6 +197,10 @@ export default function DriverSignupScreen() {
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
     >
+      <FirebaseRecaptchaVerifierModal
+        ref={recaptchaVerifier}
+        firebaseConfig={auth.app.options}
+      />
       <View style={styles.content}>
         <Text style={styles.headerTitle}>Create New Account</Text>
 

@@ -29,7 +29,9 @@ yarn-error.*
 
 # local env files
 .env*.local
-.env
 
 # typescript
 *.tsbuildinfo
+
+.google-services.json
+config.bat

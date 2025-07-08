@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "387738052261",
+    "project_id": "smart-motos",
+    "storage_bucket": "smart-motos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387738052261:android:473357263025b040580f4c",
+        "android_client_info": {
+          "package_name": "com.nihonor.smartmotosapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwHpZW0ACPpSV-KRyz8KjvwMEEpGV4b90"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
