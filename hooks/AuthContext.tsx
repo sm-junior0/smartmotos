@@ -104,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       return { success: false, error: 'An error occurred during sign in' };
+      console.log(error)
     }
   };
 

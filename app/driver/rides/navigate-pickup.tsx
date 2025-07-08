@@ -80,7 +80,7 @@ export default function NavigatePickupScreen() {
     if (!rideData) return;
 
     // Defensive: Only allow if bookingStatus is correct
-    if (bookingStatus !== 'driver_assigned' && bookingStatus !== 'en_route') {
+    if (bookingStatus !== 'accepted' && bookingStatus !== 'en_route') {
       Alert.alert('Cannot mark arrival', 'Ride is not in the correct state to mark arrival.');
       return;
     }

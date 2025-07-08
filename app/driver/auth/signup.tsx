@@ -119,13 +119,21 @@ export default function DriverSignupScreen() {
 
     // Prepare form data for image upload
     let formData = new FormData();
-    formData.append('name', fullName.trim());
-    formData.append('phone', formattedPhone);
-    formData.append('service_provider', serviceProvider);
-    formData.append('vehicle_type', vehicleType);
-    formData.append('license_number', licenseNumber);
-    formData.append('password', password);
-    formData.append('confirm_password', confirmPassword);
+    const data = {
+      name: fullName.trim(),
+      phone: formattedPhone,
+      service_provider: serviceProvider,
+      vehicle_type: vehicleType,
+      license_number: licenseNumber,
+      password: password,
+      confirm_password: confirmPassword,
+      email: email || undefined, // Only include if exists
+    };
+
+    // FIX: Append all fields as a JSON string under 'data'
+    formData.append('data', JSON.stringify(data));
+
+    // Append the license image
     if (licenseImage) {
       formData.append('license_image', {
         uri: licenseImage,
@@ -134,7 +142,6 @@ export default function DriverSignupScreen() {
       } as any);
     }
 
-    // NOTE: driverOnboarding may need to be updated to accept FormData for image upload, or use a separate upload endpoint.
     const result = await driverOnboarding(formData);
 
     setLoading(false);
@@ -295,7 +302,15 @@ export default function DriverSignupScreen() {
             </Text>
             {licenseImage ? (
               <View style={{ alignItems: 'center' }}>
-                <Image source={{ uri: licenseImage }} style={{ width: 220, height: 120, borderRadius: 8, marginBottom: 8 }} />
+                <Image
+                  source={{ uri: licenseImage }}
+                  style={{
+                    width: 220,
+                    height: 120,
+                    borderRadius: 8,
+                    marginBottom: 8,
+                  }}
+                />
                 <Button
                   text="Retake Photo"
                   onPress={() => setShowCamera(true)}

@@ -1,5 +1,23 @@
 import * as SecureStore from 'expo-secure-store'
-import { notificationService } from './notification';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+
+// Your Firebase config object (replace with your actual config)
+const firebaseConfig = {
+  apiKey: 'YOUR_API_KEY',
+  authDomain: 'YOUR_AUTH_DOMAIN',
+  projectId: 'YOUR_PROJECT_ID',
+  storageBucket: 'YOUR_STORAGE_BUCKET',
+  messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
+  appId: 'YOUR_APP_ID',
+};
+
+// Initialize Firebase only if it hasn't been initialized yet
+if (!getApps().length) {
+  initializeApp(firebaseConfig);
+}
+
+const auth = getAuth();
 
 const API_URL = 'http://192.168.8.100:5000/api';
 
@@ -111,13 +129,6 @@ export const login = async (phone: string, password: string): Promise<ApiRespons
       await SecureStore.setItemAsync('userToken', data.token);
       await SecureStore.setItemAsync('userData', JSON.stringify(data.passenger));
       
-      // Initialize WebSocket connection with user context
-      if (data.passenger && data.passenger.id !== undefined && data.passenger.id !== null) {
-        notificationService.setUserContext(data.passenger.id.toString(), 'passenger');
-        notificationService.initialize();
-      } else {
-        console.warn('Login: passenger.id is undefined or null, skipping WebSocket setup. Value:', data.passenger?.id);
-      }
       return {
         success: true,
         data: data,
@@ -257,7 +268,7 @@ export const getAccountDetails = async (): Promise<ApiResponse<AccountDetails>> 
       return { success: false, error: data.error || 'Failed to fetch details' };
     }
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
+    return { success: false, error: e.message };
   }
 };
 
@@ -305,12 +316,12 @@ export const changePassword = async (
   }
 };
 
-export const driverOnboarding = async (data: DriverOnboardingData): Promise<ApiResponse> => {
+export const driverOnboarding = async (formData: FormData): Promise<ApiResponse> => {
   try {
     const response = await fetch(`${API_URL}/driver/onboarding`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      // Do NOT set Content-Type header when sending FormData; browser/React Native will set it automatically
+      body: formData,
     });
     const resData = await response.json();
     return {
@@ -324,12 +335,23 @@ export const driverOnboarding = async (data: DriverOnboardingData): Promise<ApiR
   }
 };
 
-export const verifyDriverPhone = async (phone: string, code: string): Promise<ApiResponse> => {
+
+/**
+ * Verifies driver phone using Firebase Auth ID token.
+ * The user must have already completed phone verification via Firebase on the client.
+ * This sends the Firebase ID token to the backend for verification.
+ */
+export const verifyDriverPhone = async (): Promise<ApiResponse> => {
   try {
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'No authenticated user found.' };
+    }
+    const idToken = await currentUser.getIdToken();
     const response = await fetch(`${API_URL}/driver/verify/phone`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, code }),
+      body: JSON.stringify({ id_token: idToken }),
     });
     const data = await response.json();
     return {
@@ -342,12 +364,30 @@ export const verifyDriverPhone = async (phone: string, code: string): Promise<Ap
   }
 };
 
-export const getAuthToken = async (): Promise<string> => {
+/**
+ * Verifies passenger phone using Firebase Auth ID token.
+ * The user must have already completed phone verification via Firebase on the client.
+ * This sends the Firebase ID token to the backend for verification.
+ */
+export const verifyPassengerPhone = async (): Promise<ApiResponse> => {
   try {
-    const token = await SecureStore.getItemAsync('userToken');
-    return token || '';
+    const currentUser = auth().currentUser;
+    if (!currentUser) {
+      return { success: false, error: 'No authenticated user found.' };
+    }
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch(`${API_URL}/verify/phone`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+    const data = await response.json();
+    return {
+      success: response.ok && data.success,
+      message: data.message,
+      error: data.error,
+    };
   } catch (error) {
-    console.error('Error getting auth token:', error instanceof Error ? error.message : error);
-    return '';
+    return { success: false, error: 'Network error. Please try again.' };
   }
 };

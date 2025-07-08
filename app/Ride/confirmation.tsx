@@ -282,14 +282,21 @@ export default function RideConfirmation() {
         driver.id
       );
 
+      // Use the correct bookingId from ride state/context
+      const bookingId = rideState.bookingDetails.bookingId;
+      if (!bookingId) {
+        Alert.alert('Error', 'No booking ID found. Please try again.');
+        return;
+      }
+
       // Update the booking with the selected driver
       const response = await fetch(
-        `${API_URL}/bookings/${currentRide?.id}/assign-driver`,
+        `${API_URL}/bookings/${bookingId}/assign-driver`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${await getAuthToken()}`,
+            Authorization: `Bearer ${await getAuthToken('passenger')}`,
           },
           body: JSON.stringify({
             driver_id: driver.id,

@@ -181,9 +181,9 @@ function RidesScreen() {
     setRideRequestState('scanning');
 
     try {
-      // Fetch pending bookings from backend
-      const token = await getAuthToken();
-      const response = await fetch(`${API_URL}/bookings/pending`, {
+      // Fetch bookings assigned to the driver and are pending/driver_assigned
+      const token = await getAuthToken('driver');
+      const response = await fetch(`${API_URL}/driver/my-bookings`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -191,52 +191,59 @@ function RidesScreen() {
       });
 
       if (response.ok) {
-        const pendingBookings = await response.json();
-        console.log('[DriverRides] Pending bookings:', pendingBookings);
+        const myBookings = await response.json();
+        console.log('[DriverRides] My assigned bookings:', myBookings);
 
-        const rideRequests: RideRequest[] = pendingBookings.map(
-          (booking: any) => {
-            let pickupObj, dropoffObj;
+        const rideRequests: RideRequest[] = myBookings.map((booking: any) => {
+          // If pickup_location and dropoff_location are objects, use as-is; if strings, try to parse
+          let pickupObj = booking.pickup_location;
+          let dropoffObj = booking.dropoff_location;
+          if (typeof pickupObj === 'string') {
             try {
-              pickupObj = JSON.parse(booking.pickup_location);
+              pickupObj = JSON.parse(pickupObj);
             } catch {
               pickupObj = {};
             }
+          }
+          if (typeof dropoffObj === 'string') {
             try {
-              dropoffObj = JSON.parse(booking.dropoff_location);
+              dropoffObj = JSON.parse(dropoffObj);
             } catch {
               dropoffObj = {};
             }
-            return {
-              id: booking.id.toString(),
-              riderName: booking.passenger?.name || 'Unknown Rider',
-              rating: 5, // Default rating
-              fare: `$${booking.fare}`,
-              distance: 'Calculating...', // Will be calculated
-              pickup: pickupObj.address || 'Pickup location',
-              dropoff: dropoffObj.address || 'Dropoff location',
-              pickupCoords: {
-                latitude: pickupObj.lat || 0,
-                longitude: pickupObj.lng || 0,
-              },
-              dropoffCoords: {
-                latitude: dropoffObj.lat || 0,
-                longitude: dropoffObj.lng || 0,
-              },
-              passenger_id: booking.passenger_id,
-              booking_id: booking.id,
-            };
           }
-        );
+          return {
+            id: booking.id.toString(),
+            riderName: booking.passenger?.name || 'Unknown Rider',
+            rating: 5, // Default rating
+            fare: booking.fare ? `$${booking.fare}` : 'N/A',
+            distance: 'Calculating...', // Will be calculated
+            pickup: pickupObj.address || 'Pickup location',
+            dropoff: dropoffObj.address || 'Dropoff location',
+            pickupCoords: {
+              latitude: pickupObj.latitude ?? pickupObj.lat ?? 0,
+              longitude: pickupObj.longitude ?? pickupObj.lng ?? 0,
+            },
+            dropoffCoords: {
+              latitude: dropoffObj.latitude ?? dropoffObj.lat ?? 0,
+              longitude: dropoffObj.longitude ?? dropoffObj.lng ?? 0,
+            },
+            passenger_id: booking.passenger_id,
+            booking_id: booking.id,
+          };
+        });
 
         setAvailableRequests(rideRequests);
         setRideRequestState('requests_available');
       } else {
-        console.error('[DriverRides] Failed to fetch pending bookings');
+        console.error('[DriverRides] Failed to fetch my bookings');
+        console.log(response);
+        console.log(token);
         setRideRequestState('idle');
       }
     } catch (error) {
       console.error('[DriverRides] Error fetching pending bookings:', error);
+      console.log(error);
       setRideRequestState('idle');
     }
   };
@@ -281,11 +288,11 @@ function RidesScreen() {
   const handleAccept = async () => {
     if (selectedRequest) {
       try {
-        const token = await getAuthToken();
+        const token = await getAuthToken('driver');
         const response = await fetch(
-          `${API_URL}/bookings/${selectedRequest.booking_id}/accept`,
+          `${API_URL}/driver/driver/accept-booking/${selectedRequest.booking_id}`,
           {
-            method: 'POST',
+            method: 'PUT',
             headers: {
               Authorization: `Bearer ${token}`,
             },
@@ -309,8 +316,15 @@ function RidesScreen() {
           setAvailableRequests([]);
           setSelectedRequest(null);
         } else {
-          const errorData = await response.json();
+          let errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText };
+          }
           Alert.alert('Error', errorData.error || 'Failed to accept ride');
+          console.log(errorData);
         }
       } catch (error) {
         console.error('[DriverRides] Error accepting ride:', error);

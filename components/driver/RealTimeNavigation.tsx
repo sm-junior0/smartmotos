@@ -149,7 +149,10 @@ const RealTimeNavigation: React.FC<RealTimeNavigationProps> = ({
       isNavigatingToPickup,
     });
     setIsNearDestination(distance <= proximityThreshold);
-    console.log('[DEBUG] isNearDestination set to:', distance <= proximityThreshold);
+    console.log(
+      '[DEBUG] isNearDestination set to:',
+      distance <= proximityThreshold
+    );
   };
 
   const calculateDistance = (
@@ -257,19 +260,22 @@ const RealTimeNavigation: React.FC<RealTimeNavigationProps> = ({
           console.log('[DEBUG] Render Arrived button check:', {
             isNavigatingToPickup,
             isNearDestination,
-            bookingStatus
+            bookingStatus,
           });
           return null;
         })()}
-        {isNavigatingToPickup && isNearDestination && bookingStatus === 'driver_assigned' && (
-          <TouchableOpacity
-            style={[styles.actionButton, styles.primaryButton]}
-            onPress={onArrivedAtPickup}
-          >
-            <Ionicons name="checkmark" size={24} color="#FFF" />
-            <Text style={styles.actionButtonText}>Arrived at Pickup</Text>
-          </TouchableOpacity>
-        )}
+        {isNavigatingToPickup &&
+          isNearDestination &&
+          (bookingStatus === 'driver_assigned' ||
+            bookingStatus === 'accepted') && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.primaryButton]}
+              onPress={onArrivedAtPickup}
+            >
+              <Ionicons name="checkmark" size={24} color="#FFF" />
+              <Text style={styles.actionButtonText}>Arrived at Pickup</Text>
+            </TouchableOpacity>
+          )}
         {!isNavigatingToPickup && isNearDestination && (
           <TouchableOpacity
             style={[styles.actionButton, styles.primaryButton]}

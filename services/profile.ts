@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_URL } from '../config';
+import { API_URL } from '@/config';
 
 export interface DriverProfile {
   id: number;

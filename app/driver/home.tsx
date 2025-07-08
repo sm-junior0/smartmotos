@@ -236,6 +236,7 @@ export default function DriverHome() {
       setIsActive(value);
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
+      console.error(error);
     }
   };
 

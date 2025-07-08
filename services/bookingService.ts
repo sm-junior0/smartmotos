@@ -71,6 +71,8 @@ class BookingService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Booking API error:', response.status, errorText);
+        console.log(response);
+        console.log(errorText);
         throw new Error(`Failed to create booking: ${response.status} - ${errorText}`);
       }
 

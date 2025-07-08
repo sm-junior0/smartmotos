@@ -129,7 +129,6 @@ export default function ProfileSettingsScreen() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.form}>
-
         <ReadOnlyField label="Phone Number" value={profile?.phone || ''} />
 
         <Dropdown

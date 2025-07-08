@@ -152,6 +152,8 @@ export default function FareEstimateScreen() {
 
       // Treat HTTP 201 or presence of booking_id as success
       if (response && (response.booking_id || response.status === 'pending')) {
+        // Save bookingId to context
+        updateBookingDetails({ bookingId: response.booking_id });
         setRideStatus('searching');
         router.push('/Ride/confirmation');
       } else {

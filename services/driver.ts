@@ -1,6 +1,5 @@
 import { API_URL } from '@/config';
 import * as SecureStore from 'expo-secure-store';
-import { api } from '@/services/api';
 
 export interface ApiResponse {
   success: boolean;
@@ -96,49 +95,4 @@ export const changeDriverPassword = async (
       error: 'Failed to change password',
     };
   }
-};
-
-const getAuthHeaders = async () => {
-  const token = await SecureStore.getItemAsync('driverToken');
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`,
-  };
-};
-
-export const updateDriverStatus = async (driverId: string, status: 'available' | 'unavailable') => {
-  const token = await SecureStore.getItemAsync('driverToken');
-  if (!token) {
-    throw new Error('No token found');
-  }
-
-  const response = await api.put(
-    `/driver/status`,
-    { status },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-  return response.data;
-};
-
-export const updateDriverLocation = async (latitude: number, longitude: number) => {
-  const token = await SecureStore.getItemAsync('driverToken');
-  if (!token) {
-    throw new Error('No token found');
-  }
-
-  const response = await api.put(
-    '/driver/update-location',
-    { latitude, longitude },
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
-
-  return response.data;
 }; 
