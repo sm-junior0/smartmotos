@@ -8,8 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import Colors from '@/constants/Colors';
-import Layout from '@/constants/Layout';
+import { colors, typography, spacing } from '@/styles/theme';
 import Input from '@/components/UI/Input';
 import Button from '@/components/UI/Button';
 import SocialAuthButtons from '@/components/UI/SocialAuthButtons';
@@ -108,33 +107,34 @@ export default function Signup() {
   };
 
   const handleSignup = async () => {
-    if (!validateForm()) return;
+    // if (!validateForm()) return;
 
-    setLoading(true);
-    const result = await signup({
-      name: formData.fullName,
-      email: formData.email,
-      phone: formData.phone,
-      password: formData.password,
-      confirm_password: formData.confirmPassword,
-    });
+    // setLoading(true);
+    // const result = await signup({
+    //   name: formData.fullName,
+    //   email: formData.email,
+    //   phone: formData.phone,
+    //   password: formData.password,
+    //   confirm_password: formData.confirmPassword,
+    // });
 
-    setLoading(false);
+    // setLoading(false);
 
-    if (result.success) {
-      Alert.alert('Success', result.message, [
-        {
-          text: 'OK',
-          onPress: () =>
-            router.push({
-              pathname: '/Auth/Verification',
-              params: { phone: formData.phone },
-            }),
-        },
-      ]);
-    } else {
-      Alert.alert('Error', result.error);
-    }
+    // if (result.success) {
+    //   Alert.alert('Success', result.message, [
+    //     {
+    //       text: 'OK',
+    //       onPress: () =>
+    //         router.push({
+    //           pathname: '/Auth/Verification',
+    //           params: { phone: formData.phone },
+    //         }),
+    //     },
+    //   ]);
+    // } else {
+    //   Alert.alert('Error', result.error);
+    // }
+    router.push('/Auth/Verification');
   };
 
   const handleGoogleSignup = () => {
@@ -159,66 +159,67 @@ export default function Signup() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>Create New Account</Text>
-      </View>
+      <View style={styles.content}>
+        <Text style={styles.headerTitle}>Create New Account</Text>
+        
+        <View style={styles.form}>
+          <Input
+            label="Full Name"
+            placeholder="John Doe"
+            value={formData.fullName}
+            onChangeText={(value) => updateFormData('fullName', value)}
+            error={errors.fullName}
+          />
 
-      <View style={styles.formContainer}>
-        <Input
-          label="Full Name"
-          placeholder="John Doe"
-          value={formData.fullName}
-          onChangeText={(value) => updateFormData('fullName', value)}
-          error={errors.fullName}
-        />
+          <Input
+            label="Email"
+            placeholder="your@email.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={formData.email}
+            onChangeText={(value) => updateFormData('email', value)}
+            error={errors.email}
+          />
 
-        <Input
-          label="Email"
-          placeholder="your@email.com"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={formData.email}
-          onChangeText={(value) => updateFormData('email', value)}
-          error={errors.email}
-        />
+          <Input
+            label="Phone Number"
+            placeholder="+250XXXXXXXXX"
+            keyboardType="phone-pad"
+            value={formData.phone}
+            onChangeText={handlePhoneChange}
+            error={errors.phone}
+          />
 
-        <Input
-          label="Phone Number"
-          placeholder="+250XXXXXXXXX"
-          keyboardType="phone-pad"
-          value={formData.phone}
-          onChangeText={handlePhoneChange}
-          error={errors.phone}
-        />
+          <Input
+            label="Password"
+            placeholder="Create a password"
+            secureTextEntry
+            value={formData.password}
+            onChangeText={(value) => updateFormData('password', value)}
+            error={errors.password}
+          />
 
-        <Input
-          label="Password"
-          placeholder="Create a password"
-          secureTextEntry
-          value={formData.password}
-          onChangeText={(value) => updateFormData('password', value)}
-          error={errors.password}
-        />
+          <Input
+            label="Confirm Password"
+            placeholder="Confirm your password"
+            secureTextEntry
+            value={formData.confirmPassword}
+            onChangeText={(value) => updateFormData('confirmPassword', value)}
+            error={errors.confirmPassword}
+          />
 
-        <Input
-          label="Confirm Password"
-          placeholder="Confirm your password"
-          secureTextEntry
-          value={formData.confirmPassword}
-          onChangeText={(value) => updateFormData('confirmPassword', value)}
-          error={errors.confirmPassword}
-        />
-
-        <Button
-          title="Create Account"
-          onPress={handleSignup}
-          variant="primary"
-          size="large"
-          loading={loading}
-          style={styles.signupButton}
-        />
+          <Button
+            title="Create Account"
+            onPress={handleSignup}
+            variant="primary"
+            size="large"
+            loading={loading}
+            style={styles.signupButton}
+          />
+        </View>
 
         <SocialAuthButtons
           onGooglePress={handleGoogleSignup}
@@ -227,7 +228,7 @@ export default function Signup() {
         />
 
         <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account?</Text>
+          <Text style={styles.loginText}>Already have an account? </Text>
           <TouchableOpacity onPress={navigateToLogin}>
             <Text style={styles.loginLink}>Login</Text>
           </TouchableOpacity>
@@ -240,41 +241,42 @@ export default function Signup() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.secondary.default,
+    backgroundColor: colors.background.default,
   },
-  contentContainer: {
-    paddingBottom: Layout.spacing.xl,
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xl,
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: Layout.spacing.xl,
-    paddingBottom: Layout.spacing.l,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.neutral.white,
-  },
-  formContainer: {
+  content: {
     flex: 1,
-    paddingHorizontal: Layout.spacing.xl,
+    padding: spacing.xl,
+  },
+  headerTitle: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize['3xl'],
+    color: colors.text.primary,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+  },
+  form: {
+    width: '100%',
   },
   signupButton: {
-    marginTop: Layout.spacing.m,
+    marginTop: spacing.md,
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: Layout.spacing.l,
+    marginTop: spacing.lg,
   },
   loginText: {
-    color: Colors.neutral.light,
-    fontSize: 14,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.md,
+    color: colors.text.secondary,
   },
   loginLink: {
-    color: Colors.primary.default,
-    fontWeight: '600',
-    marginLeft: Layout.spacing.xs,
-    fontSize: 14,
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.md,
+    color: colors.primary.main,
   },
 });

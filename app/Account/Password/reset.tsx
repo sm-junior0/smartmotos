@@ -234,10 +234,10 @@ const styles = StyleSheet.create<Styles>({
   } as TextStyle,
   inputError: {
     borderWidth: 1,
-    borderColor: Colors.error,
+    borderColor: Colors.error.default,
   } as TextStyle,
   errorText: {
-    color: Colors.error,
+    color: Colors.error.default,
     fontSize: 14,
     marginTop: 4,
   },

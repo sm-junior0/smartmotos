@@ -10,8 +10,7 @@ import {
   TouchableOpacity,
   TextStyle,
 } from 'react-native';
-import Colors from '@/constants/Colors';
-import Layout from '@/constants/Layout';
+import { colors, typography, spacing, borderRadius } from '@/styles/theme';
 import { Eye, EyeOff } from 'lucide-react-native';
 
 interface InputProps extends TextInputProps {
@@ -51,7 +50,7 @@ export default function Input({
       >
         <TextInput
           style={styles.input}
-          placeholderTextColor={placeholderTextColor || Colors.neutral.medium}
+          placeholderTextColor={placeholderTextColor || colors.text.secondary}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           secureTextEntry={secureTextEntry && !isPasswordVisible}
@@ -63,9 +62,9 @@ export default function Input({
             style={styles.iconContainer}
           >
             {isPasswordVisible ? (
-              <EyeOff size={20} color={Colors.neutral.dark} />
+              <EyeOff size={20} color={colors.text.secondary} />
             ) : (
-              <Eye size={20} color={Colors.neutral.dark} />
+              <Eye size={20} color={colors.text.secondary} />
             )}
           </TouchableOpacity>
         )}
@@ -77,42 +76,44 @@ export default function Input({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: Layout.spacing.m,
+    marginBottom: spacing.md,
     width: '100%',
   },
   label: {
-    marginBottom: Layout.spacing.xs,
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.neutral.darker,
+    fontFamily: typography.fontFamily.medium,
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.neutral.light,
-    borderRadius: Layout.borderRadius.m,
-    backgroundColor: Colors.neutral.white,
+    borderColor: colors.secondary.light,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background.paper,
   },
   input: {
     flex: 1,
-    paddingHorizontal: Layout.spacing.m,
-    paddingVertical: Layout.spacing.m,
-    fontSize: 16,
-    color: Colors.secondary.default,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.md,
+    color: colors.text.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   focusedInput: {
-    borderColor: Colors.primary.default,
+    borderColor: colors.primary.main,
   },
   errorInput: {
-    borderColor: Colors.error.default,
+    borderColor: colors.error.main,
   },
   errorText: {
-    color: Colors.error.default,
-    fontSize: 12,
-    marginTop: Layout.spacing.xs,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.sm,
+    color: colors.error.main,
+    marginTop: spacing.xs,
   },
   iconContainer: {
-    paddingHorizontal: Layout.spacing.m,
+    paddingHorizontal: spacing.md,
   },
 });
