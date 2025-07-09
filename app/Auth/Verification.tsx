@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, Alert } from 'react-native';
+import { StyleSheet, View, Text, Alert, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import Colors from '@/constants/Colors';
-import Layout from '@/constants/Layout';
+import { colors, typography, spacing } from '@/styles/theme';
 import Button from '@/components/UI/Button';
 import VerificationInput from '@/components/UI/VerificationInput';
 import { verifyPhone } from '@/services/auth';
@@ -30,57 +29,68 @@ export default function Verification() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Verify Your Phone</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.content}>
+        <Text style={styles.headerTitle}>Verify Your Phone</Text>
         <Text style={styles.subtitle}>
           Enter the 6-digit code sent to {phone}
         </Text>
-      </View>
+        
+        <View style={styles.form}>
+          <VerificationInput length={6} value={code} onChange={setCode} />
 
-      <View style={styles.formContainer}>
-        <VerificationInput length={6} value={code} onChange={setCode} />
-
-        <Button
-          title="Verify"
-          onPress={handleVerification}
-          variant="primary"
-          size="large"
-          loading={loading}
-          style={styles.verifyButton}
-        />
+          <Button
+            title="Verify"
+            onPress={handleVerification}
+            variant="primary"
+            size="large"
+            loading={loading}
+            style={styles.verifyButton}
+          />
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.secondary.default,
+    backgroundColor: colors.background.default,
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: Layout.spacing.xl,
-    paddingBottom: Layout.spacing.l,
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: spacing.xl,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.neutral.white,
-    marginBottom: Layout.spacing.s,
+  content: {
+    flex: 1,
+    padding: spacing.xl,
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: typography.fontSize['3xl'],
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: Colors.neutral.light,
+    fontFamily: typography.fontFamily.regular,
+    fontSize: typography.fontSize.lg,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.xl,
   },
-  formContainer: {
-    flex: 1,
-    paddingHorizontal: Layout.spacing.xl,
+  form: {
+    width: '100%',
     alignItems: 'center',
   },
   verifyButton: {
-    marginTop: Layout.spacing.xl,
+    marginTop: spacing.xl,
     width: '100%',
   },
 });

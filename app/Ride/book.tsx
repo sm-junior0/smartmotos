@@ -61,7 +61,7 @@ export default function BookRideScreen() {
             onChangeText={(text) => updateBookingDetails({ pickup: text })}
             style={styles.input}
             labelStyle={styles.inputLabel}
-            placeholderTextColor={Colors.neutral.medium}
+            placeholderTextColor={Colors.neutral.dark}
           />
 
           <Input
@@ -71,7 +71,7 @@ export default function BookRideScreen() {
             onChangeText={(text) => updateBookingDetails({ dropoff: text })}
             style={styles.input}
             labelStyle={styles.inputLabel}
-            placeholderTextColor={Colors.neutral.medium}
+            placeholderTextColor={Colors.neutral.dark}
           />
 
           {rideState.bookingDetails.stops.map((stop, index) => (
@@ -84,7 +84,7 @@ export default function BookRideScreen() {
                 containerStyle={styles.stopInput}
                 style={styles.input}
                 labelStyle={styles.inputLabel}
-                placeholderTextColor={Colors.neutral.medium}
+                placeholderTextColor={Colors.neutral.dark}
               />
               {index > 0 && (
                 <Button
@@ -149,11 +149,11 @@ export default function BookRideScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.neutral.black,
+    backgroundColor: Colors.neutral.dark,
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.neutral.black,
+    backgroundColor: Colors.neutral.dark,
   },
   header: {
     flexDirection: 'row',
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Layout.spacing.m,
     paddingVertical: Layout.spacing.s,
-    backgroundColor: Colors.neutral.black,
+    backgroundColor: Colors.neutral.dark,
   },
   backButton: {
     padding: Layout.spacing.s,
@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.neutral.white,
-    color: Colors.neutral.black,
+    color: Colors.neutral.dark,
     borderRadius: Layout.borderRadius.m,
     paddingHorizontal: Layout.spacing.m,
     paddingVertical: Layout.spacing.m,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   },
    bottomButtonContainer: {
     padding: Layout.spacing.xl,
-    backgroundColor: Colors.neutral.black,
+    backgroundColor: Colors.neutral.dark,
   },
   doneButton: {
     width: '100%',
