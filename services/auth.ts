@@ -1,6 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = 'http://10.12.74.26:5000/api';
+const API_URL = 'http://10.11.75.249:5000/api';
 
 interface LoginResponse {
   token: string;

@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: Colors.error,
+    color: Colors.error.default,
     fontSize: 14,
     marginBottom: 16,
     textAlign: 'center',
